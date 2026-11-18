@@ -1,0 +1,2997 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Grandmaster 3D Chess — Catur Sinematik AAA</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Fonts: Cinzel (Display Kerajaan) & Inter (HUD Modern) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Three.js r128, OrbitControls & Chess.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+
+  <style>
+    :root {
+      --gold-primary: #d4af37;
+      --gold-light: #f3e5ab;
+      --glass-bg: rgba(13, 16, 24, 0.74);
+      --glass-border: rgba(212, 175, 55, 0.24);
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      height: 100dvh;
+      overflow: hidden;
+      background-color: #07090e;
+      font-family: 'Inter', sans-serif;
+      color: #f3f4f6;
+    }
+
+    .font-royal {
+      font-family: 'Cinzel', serif;
+    }
+
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      touch-action: none;
+    }
+
+    /* Glassmorphism Panels */
+    .glass-panel {
+      background: var(--glass-bg);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
+
+    .glass-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .glass-btn:hover:not(:disabled) {
+      background: rgba(212, 175, 55, 0.16);
+      border-color: rgba(212, 175, 55, 0.55);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(212, 175, 55, 0.18);
+    }
+
+    .glass-btn:active:not(:disabled) {
+      transform: translateY(0) scale(0.98);
+    }
+
+    .glass-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .gold-gradient-btn {
+      background: linear-gradient(135deg, #d4af37 0%, #aa821e 100%);
+      color: #0b0d13;
+      font-weight: 700;
+      border: 1px solid rgba(255, 243, 196, 0.45);
+      box-shadow: 0 6px 24px rgba(212, 175, 55, 0.32);
+      transition: all 0.22s ease;
+    }
+
+    .gold-gradient-btn:hover {
+      filter: brightness(1.08);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 28px rgba(212, 175, 55, 0.45);
+    }
+
+    /* Status Aktif Tombol Kamera POV */
+    .pov-btn-active {
+      background: rgba(212, 175, 55, 0.22) !important;
+      border-color: rgba(243, 229, 171, 0.72) !important;
+      color: #fde68a !important;
+      box-shadow: 0 0 18px rgba(212, 175, 55, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    }
+
+    /* Custom Thin Scrollbar untuk Riwayat Langkah */
+    .custom-scroll::-webkit-scrollbar {
+      width: 5px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 999px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: rgba(212, 175, 55, 0.32);
+      border-radius: 999px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb:hover {
+      background: rgba(212, 175, 55, 0.55);
+    }
+
+    /* Animasi Denyut Peringatan Skak */
+    @keyframes pulseCheck {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.65);
+        border-color: rgba(239, 68, 68, 0.9);
+      }
+      50% {
+        box-shadow: 0 0 22px 4px rgba(239, 68, 68, 0.45);
+        border-color: rgba(252, 165, 165, 1);
+      }
+    }
+
+    .check-alert-pulse {
+      animation: pulseCheck 1.3s infinite ease-in-out;
+    }
+
+    /* Animasi Fade Modal */
+    @keyframes modalAppear {
+      from {
+        opacity: 0;
+        transform: scale(0.94) translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+
+    .modal-animate {
+      animation: modalAppear 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    /* Loader Shimmer */
+    @keyframes spinSlow {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .spin-slow {
+      animation: spinSlow 2.4s linear infinite;
+    }
+  </style>
+</head>
+<body>
+  <!-- Kanvas Utama 3D WebGL -->
+  <div id="canvas-container"></div>
+
+  <!-- Layar Pemuatan Awal (Loading Screen) -->
+  <div id="loading-screen" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#07090e] transition-opacity duration-700">
+    <div class="relative w-20 h-20 mb-6 flex items-center justify-center">
+      <div class="absolute inset-0 rounded-full border-2 border-amber-500/20"></div>
+      <div class="absolute inset-0 rounded-full border-t-2 border-amber-400 spin-slow"></div>
+      <span class="text-4xl text-amber-400">♔</span>
+    </div>
+    <h1 class="font-royal text-2xl sm:text-3xl font-bold tracking-widest text-amber-300 mb-2">GRANDMASTER 3D</h1>
+    <p id="loading-status" class="text-xs sm:text-sm text-slate-400 tracking-wide">Menyiapkan Tekstur Marmer &amp; Pencahayaan Sinematik...</p>
+  </div>
+
+  <!-- Lapisan Antarmuka HUD (Pointer-events diatur selektif agar kanvas tetap interaktif) -->
+  <div id="hud-layer" class="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between px-3 sm:px-5 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-all duration-300 opacity-100">
+
+    <!-- BARIS ATAS: Judul, Indikator Giliran & Kontrol Sembunyikan UI / Audio -->
+    <header class="flex flex-wrap items-center justify-between gap-2 pointer-events-auto">
+      <!-- Brand / Mode Info -->
+      <div class="glass-panel rounded-2xl px-3.5 py-2 sm:px-4 sm:py-2.5 flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400/25 to-amber-600/10 border border-amber-400/40 flex items-center justify-center text-amber-300 text-xl shadow-inner">
+          ♛
+        </div>
+        <div>
+          <h1 class="font-royal text-sm sm:text-base font-bold tracking-wider text-amber-200 leading-tight">GRANDMASTER 3D</h1>
+          <p id="mode-subtitle" class="text-[11px] text-slate-400 font-medium">Lawan AI • Tingkat Grandmaster</p>
+        </div>
+      </div>
+
+      <!-- Status Giliran & Peringatan Skak (Tengah) -->
+      <div id="turn-pill" class="glass-panel rounded-2xl px-4 py-2 sm:px-5 sm:py-2.5 flex items-center gap-3 transition-all duration-300">
+        <span id="turn-dot" class="w-3.5 h-3.5 rounded-full bg-amber-100 shadow-[0_0_12px_rgba(255,255,255,0.85)] border border-amber-400/60"></span>
+        <div class="flex flex-col">
+          <span id="turn-text" class="text-xs sm:text-sm font-bold tracking-wide text-white">Giliran Putih</span>
+          <span id="status-subtext" class="text-[10px] sm:text-[11px] text-amber-300/90 font-medium">Pilih bidak untuk melangkah</span>
+        </div>
+        <!-- Spinner saat AI berpikir -->
+        <div id="ai-thinking-badge" class="hidden items-center gap-1.5 ml-2 px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-300 text-[11px] font-semibold">
+          <span class="w-2.5 h-2.5 rounded-full border-2 border-amber-300 border-t-transparent animate-spin"></span>
+          <span>Berpikir...</span>
+        </div>
+      </div>
+
+      <!-- Kontrol Sembunyikan UI & Audio (Kanan Atas) -->
+      <div class="glass-panel rounded-2xl p-1.5 flex items-center gap-1.5">
+        <button id="btn-hide-ui" title="Sembunyikan UI (Pintasan: H)" class="glass-btn rounded-xl px-3 py-2 text-xs font-medium text-slate-200 flex items-center gap-2">
+          <svg class="w-4 h-4 text-amber-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+          </svg>
+          <span class="hidden sm:inline">Sembunyikan UI</span>
+          <kbd class="hidden md:inline-block px-1.5 py-0.5 text-[10px] font-mono rounded bg-white/10 text-amber-300 border border-white/15">H</kbd>
+        </button>
+        <div class="w-px h-6 bg-white/10 mx-0.5"></div>
+        <button id="btn-audio" title="Suara Efek (Aktif)" class="glass-btn rounded-xl p-2 text-sm text-amber-300" aria-label="Suara">
+          🔊
+        </button>
+      </div>
+    </header>
+
+    <!-- AREA TENGAH: Panel Samping Kiri & Kanan (Desktop) -->
+    <div class="flex-1 flex items-center justify-between my-3 overflow-hidden">
+
+      <!-- PANEL KIRI (Desktop): Status Pemain & Bidak Termakan -->
+      <aside class="hidden lg:flex flex-col gap-3 w-72 pointer-events-auto">
+        <!-- Kartu Pemain Hitam -->
+        <div id="card-black" class="glass-panel rounded-2xl p-4 transition-all duration-300">
+          <div class="flex items-center justify-between mb-2.5">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-xl bg-slate-900 border border-amber-500/40 flex items-center justify-center text-lg text-amber-400 shadow-inner">
+                ♚
+              </div>
+              <div>
+                <h2 id="name-black" class="text-sm font-bold text-slate-100">Hitam (AI)</h2>
+                <p id="role-black" class="text-[11px] text-slate-400">Obsidian Kerajaan</p>
+              </div>
+            </div>
+            <span id="adv-black" class="hidden px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs font-bold">+0</span>
+          </div>
+          <div class="min-h-[28px] rounded-xl bg-black/30 border border-white/5 px-2.5 py-1.5 flex flex-wrap items-center gap-1 text-base" id="captured-by-black">
+            <span class="text-[11px] text-slate-500 italic">Belum ada bidak dimakan</span>
+          </div>
+        </div>
+
+        <!-- Kartu Pemain Putih -->
+        <div id="card-white" class="glass-panel rounded-2xl p-4 transition-all duration-300 ring-1 ring-amber-400/50">
+          <div class="flex items-center justify-between mb-2.5">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-xl bg-amber-50 border border-amber-400 flex items-center justify-center text-lg text-slate-900 shadow-inner">
+                ♔
+              </div>
+              <div>
+                <h2 id="name-white" class="text-sm font-bold text-white">Putih (Anda)</h2>
+                <p id="role-white" class="text-[11px] text-slate-400">Gading &amp; Emas</p>
+              </div>
+            </div>
+            <span id="adv-white" class="hidden px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs font-bold">+0</span>
+          </div>
+          <div class="min-h-[28px] rounded-xl bg-black/30 border border-white/5 px-2.5 py-1.5 flex flex-wrap items-center gap-1 text-base" id="captured-by-white">
+            <span class="text-[11px] text-slate-500 italic">Belum ada bidak dimakan</span>
+          </div>
+        </div>
+
+        <!-- Panduan Singkat Kontrol 3D -->
+        <div class="glass-panel rounded-2xl p-3.5 text-[11px] text-slate-400 space-y-1.5">
+          <div class="text-amber-300/90 font-semibold flex items-center gap-1.5">
+            <span>✨</span> Kontrol Interaktif 3D
+          </div>
+          <p>• <strong class="text-slate-200">Klik / Ketuk Bidak:</strong> Lihat langkah legal</p>
+          <p>• <strong class="text-slate-200">Seret Kiri / 1 Jari:</strong> Putar sudut kamera</p>
+          <p>• <strong class="text-slate-200">Scroll / Cubit:</strong> Perbesar &amp; perkecil papan</p>
+        </div>
+      </aside>
+
+      <!-- PANEL KANAN (Desktop): Riwayat Notasi Langkah & Tombol Aksi -->
+      <aside class="hidden lg:flex flex-col w-72 h-[430px] max-h-[68vh] glass-panel rounded-2xl p-4 pointer-events-auto">
+        <div class="flex items-center justify-between pb-2.5 mb-2.5 border-b border-white/10">
+          <h3 class="font-royal text-xs font-bold tracking-wider text-amber-300 uppercase">Riwayat Langkah</h3>
+          <span id="move-counter" class="text-[11px] text-slate-400 font-medium">0 Langkah</span>
+        </div>
+
+        <!-- Daftar Notasi Aljabar -->
+        <div id="move-history-desktop" class="flex-1 overflow-y-auto custom-scroll pr-1 space-y-1 text-xs">
+          <div class="h-full flex items-center justify-center text-slate-500 italic text-center px-4">
+            Permainan dimulai. Gerakkan bidak Putih pertama Anda.
+          </div>
+        </div>
+
+        <!-- Tombol Aksi Utama -->
+        <div class="pt-3 mt-3 border-t border-white/10 grid grid-cols-2 gap-2">
+          <button id="btn-undo" class="glass-btn rounded-xl py-2.5 px-3 text-xs font-semibold text-slate-200 flex items-center justify-center gap-1.5">
+            <span>↩️</span> Urungkan
+          </button>
+          <button id="btn-hint" class="glass-btn rounded-xl py-2.5 px-3 text-xs font-semibold text-amber-300 flex items-center justify-center gap-1.5">
+            <span>💡</span> Petunjuk
+          </button>
+          <button id="btn-new-game" class="col-span-2 gold-gradient-btn rounded-xl py-2.5 px-4 text-xs tracking-wide uppercase flex items-center justify-center gap-2">
+            <span>👑</span> Permainan Baru
+          </button>
+        </div>
+      </aside>
+    </div>
+
+    <!-- AREA BAWAH: Kontrol Sudut Pandang Kamera POV (Semua Layar) & Aksi Mobile -->
+    <div class="flex flex-col items-center gap-2 pointer-events-none">
+      <!-- Bar Sudut Pandang Kamera POV (POV Putih, POV Hitam, Auto-Flip, Tampilan Atas) -->
+      <div id="camera-pov-bar" class="glass-panel rounded-2xl p-1 sm:p-1.5 flex flex-wrap items-center justify-center gap-1 sm:gap-1.5 pointer-events-auto shadow-2xl">
+        <button id="btn-pov-white" title="Sudut Pandang Bidak Putih" class="pov-btn-active glass-btn rounded-xl px-2.5 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-xs font-semibold text-slate-200 flex items-center gap-1 sm:gap-1.5">
+          <span class="text-sm">♔</span>
+          <span>POV Putih</span>
+        </button>
+        <button id="btn-pov-black" title="Sudut Pandang Bidak Hitam" class="glass-btn rounded-xl px-2.5 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-xs font-semibold text-slate-200 flex items-center gap-1 sm:gap-1.5">
+          <span class="text-sm text-amber-400">♚</span>
+          <span>POV Hitam</span>
+        </button>
+        <button id="btn-pov-autoflip" title="Putar Kamera Otomatis Setiap Giliran" class="hidden glass-btn rounded-xl px-2.5 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-xs font-semibold text-slate-200 items-center gap-1 sm:gap-1.5">
+          <span>🔄</span>
+          <span>Auto-Flip</span>
+        </button>
+        <div class="w-px h-5 bg-white/10 mx-0.5 hidden sm:block"></div>
+        <button id="btn-pov-top" title="Sudut Pandang Taktis dari Atas" class="glass-btn rounded-xl px-2.5 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-xs font-semibold text-slate-200 flex items-center gap-1 sm:gap-1.5">
+          <span>📐</span>
+          <span>Atas</span>
+        </button>
+      </div>
+
+      <!-- BARIS BAWAH (Khusus Mobile & Tablet < lg): Ringkasan Kompak & Tombol Aksi -->
+      <footer class="lg:hidden w-full flex flex-col gap-2 pointer-events-auto">
+        <!-- Bar Bidak Termakan Kompak -->
+        <div class="glass-panel rounded-2xl px-3 py-2 flex items-center justify-between gap-2 text-xs">
+          <div class="flex items-center gap-1.5 overflow-x-auto">
+            <span class="font-bold text-slate-300 shrink-0">♚ Hitam:</span>
+            <span id="adv-black-mobile" class="hidden text-amber-300 font-bold">+0</span>
+            <div id="captured-by-black-mobile" class="flex items-center gap-0.5 text-sm text-slate-300"></div>
+          </div>
+          <div class="w-px h-4 bg-white/10 shrink-0"></div>
+          <div class="flex items-center gap-1.5 overflow-x-auto">
+            <span class="font-bold text-amber-200 shrink-0">♔ Putih:</span>
+            <span id="adv-white-mobile" class="hidden text-amber-300 font-bold">+0</span>
+            <div id="captured-by-white-mobile" class="flex items-center gap-0.5 text-sm text-slate-200"></div>
+          </div>
+        </div>
+
+        <!-- Bar Tombol Bawah Mobile -->
+        <div class="glass-panel rounded-2xl p-2 flex items-center justify-between gap-1.5">
+          <button id="btn-undo-mobile" class="glass-btn flex-1 rounded-xl py-2.5 px-2 text-xs font-semibold text-slate-200 flex items-center justify-center gap-1">
+            <span>↩️</span> Undo
+          </button>
+          <button id="btn-hint-mobile" class="glass-btn flex-1 rounded-xl py-2.5 px-2 text-xs font-semibold text-amber-300 flex items-center justify-center gap-1">
+            <span>💡</span> Petunjuk
+          </button>
+          <button id="btn-history-toggle-mobile" class="glass-btn flex-1 rounded-xl py-2.5 px-2 text-xs font-semibold text-slate-200 flex items-center justify-center gap-1">
+            <span>📜</span> Notasi
+          </button>
+          <button id="btn-new-game-mobile" class="gold-gradient-btn flex-1 rounded-xl py-2.5 px-2 text-xs font-bold flex items-center justify-center gap-1">
+            <span>👑</span> Baru
+          </button>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <!-- TOMBOL MENGAMBANG KEMBALIKAN UI (Hanya muncul saat mode fokus / UI disembunyikan) -->
+  <button id="btn-restore-ui" title="Tampilkan UI (Pintasan: H)" class="fixed top-4 right-4 z-30 glass-panel glass-btn rounded-full px-4 py-2.5 text-xs font-semibold text-amber-200 border border-amber-400/50 shadow-2xl flex items-center gap-2 transition-all duration-300 opacity-0 pointer-events-none translate-y-[-8px]">
+    <svg class="w-4 h-4 text-amber-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+    </svg>
+    <span>Tampilkan UI</span>
+  </button>
+
+  <!-- NOTIFIKASI TOAST RINGAN (Pengganti alert()) -->
+  <div id="toast-banner" class="fixed top-20 left-1/2 -translate-x-1/2 z-40 pointer-events-none opacity-0 transition-all duration-300 transform -translate-y-2">
+    <div class="glass-panel rounded-full px-5 py-2 border border-amber-400/50 text-xs sm:text-sm font-semibold text-amber-200 shadow-2xl flex items-center gap-2">
+      <span id="toast-icon">✨</span>
+      <span id="toast-message">Pesan notifikasi</span>
+    </div>
+  </div>
+
+  <!-- MODAL RIWAYAT NOTASI KHUSUS MOBILE -->
+  <div id="mobile-history-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div class="glass-panel w-full max-w-sm rounded-3xl p-5 modal-animate border border-amber-400/35 flex flex-col max-h-[75vh]">
+      <div class="flex items-center justify-between pb-3 mb-3 border-b border-white/10">
+        <h3 class="font-royal text-sm font-bold text-amber-200 tracking-wider uppercase">Riwayat Langkah</h3>
+        <button id="btn-close-mobile-history" aria-label="Tutup" class="glass-btn rounded-xl w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white">×</button>
+      </div>
+      <div id="move-history-mobile" class="flex-1 overflow-y-auto custom-scroll pr-1 space-y-1 text-xs">
+        <div class="py-8 text-center text-slate-500 italic">Belum ada langkah tercatat.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL PROMOSI PION -->
+  <div id="promotion-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+    <div class="glass-panel w-full max-w-sm rounded-3xl p-6 text-center modal-animate border border-amber-400/50">
+      <h3 class="font-royal text-lg font-bold text-amber-200 tracking-wide mb-1">PROMOSI PION</h3>
+      <p class="text-xs text-slate-400 mb-5">Pilih bidak kerajaan untuk menggantikan pion Anda</p>
+      <div class="grid grid-cols-2 gap-3">
+        <button type="button" data-piece="q" class="promo-btn glass-btn rounded-2xl p-4 flex flex-col items-center gap-1.5 hover:border-amber-400">
+          <span class="text-3xl text-amber-300">♛</span>
+          <span class="text-xs font-bold text-white">Menteri</span>
+        </button>
+        <button type="button" data-piece="r" class="promo-btn glass-btn rounded-2xl p-4 flex flex-col items-center gap-1.5 hover:border-amber-400">
+          <span class="text-3xl text-amber-300">♜</span>
+          <span class="text-xs font-bold text-white">Benteng</span>
+        </button>
+        <button type="button" data-piece="b" class="promo-btn glass-btn rounded-2xl p-4 flex flex-col items-center gap-1.5 hover:border-amber-400">
+          <span class="text-3xl text-amber-300">♝</span>
+          <span class="text-xs font-bold text-white">Gajah</span>
+        </button>
+        <button type="button" data-piece="n" class="promo-btn glass-btn rounded-2xl p-4 flex flex-col items-center gap-1.5 hover:border-amber-400">
+          <span class="text-3xl text-amber-300">♞</span>
+          <span class="text-xs font-bold text-white">Kuda</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL PENGATURAN & PERMAINAN BARU (Muncul langsung saat pertama kali membuka web) -->
+  <div id="setup-modal" class="fixed inset-0 z-40 flex items-center justify-center bg-black/65 backdrop-blur-sm p-3 sm:p-4">
+    <div class="glass-panel w-full max-w-md max-h-[90dvh] overflow-y-auto custom-scroll rounded-3xl p-5 sm:p-6 modal-animate border border-amber-400/35">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="font-royal text-xl font-bold text-amber-200 tracking-wide">PERMAINAN BARU</h2>
+          <p class="text-xs text-slate-400">Konfigurasikan mode &amp; kecerdasan lawan</p>
+        </div>
+        <button id="btn-close-setup" aria-label="Tutup" class="glass-btn rounded-xl w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white">×</button>
+      </div>
+
+      <!-- Pilihan Mode Permainan -->
+      <div class="mb-4">
+        <label class="block text-xs font-semibold text-slate-300 mb-2">Mode Permainan</label>
+        <div class="grid grid-cols-2 gap-2.5">
+          <button type="button" data-mode="ai" class="setup-mode-btn glass-btn rounded-2xl p-3 text-left border-amber-400/60 bg-amber-500/15">
+            <div class="text-base mb-1">🤖</div>
+            <div class="text-xs font-bold text-white">Lawan AI</div>
+            <div class="text-[10px] text-slate-400">Tantang komputer pintar</div>
+          </button>
+          <button type="button" data-mode="pvp" class="setup-mode-btn glass-btn rounded-2xl p-3 text-left">
+            <div class="text-base mb-1">👥</div>
+            <div class="text-xs font-bold text-white">2 Pemain (Lokal)</div>
+            <div class="text-[10px] text-slate-400">Bergantian di 1 perangkat</div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Opsi Khusus Lawan AI -->
+      <div id="ai-options-group" class="space-y-4 mb-5">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-2">Tingkat Kesulitan AI</label>
+          <div class="grid grid-cols-3 gap-2">
+            <button type="button" data-diff="1" class="setup-diff-btn glass-btn rounded-xl py-2.5 px-2 text-center">
+              <div class="text-xs font-bold text-white">Pemula</div>
+              <div class="text-[10px] text-slate-400">Santai</div>
+            </button>
+            <button type="button" data-diff="2" class="setup-diff-btn glass-btn rounded-xl py-2.5 px-2 text-center">
+              <div class="text-xs font-bold text-white">Menengah</div>
+              <div class="text-[10px] text-slate-400">Taktis</div>
+            </button>
+            <button type="button" data-diff="3" class="setup-diff-btn glass-btn rounded-xl py-2.5 px-2 text-center border-amber-400/60 bg-amber-500/15">
+              <div class="text-xs font-bold text-amber-300">Grandmaster</div>
+              <div class="text-[10px] text-slate-400">Ahli</div>
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-2">Pilih Sisi Bidak Anda</label>
+          <div class="grid grid-cols-2 gap-2.5">
+            <button type="button" data-color="w" class="setup-color-btn glass-btn rounded-xl py-2.5 px-3 flex items-center justify-center gap-2 border-amber-400/60 bg-amber-500/15">
+              <span class="text-lg">♔</span>
+              <span class="text-xs font-bold text-white">Putih (Jalan Pertama)</span>
+            </button>
+            <button type="button" data-color="b" class="setup-color-btn glass-btn rounded-xl py-2.5 px-3 flex items-center justify-center gap-2">
+              <span class="text-lg text-amber-400">♚</span>
+              <span class="text-xs font-bold text-white">Hitam (Jalan Kedua)</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Opsi Khusus 2 Pemain (Lokal) -->
+      <div id="pvp-options-group" class="hidden space-y-4 mb-5">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-2">Kamera 2 Pemain (POV)</label>
+          <div class="grid grid-cols-2 gap-2.5">
+            <button type="button" data-pvp-cam="manual" class="setup-pvpcam-btn glass-btn rounded-2xl p-3 text-left border-amber-400/60 bg-amber-500/15">
+              <div class="text-base mb-1">🎥</div>
+              <div class="text-xs font-bold text-white">Ganti POV Manual</div>
+              <div class="text-[10px] text-slate-400">Gunakan tombol POV Putih / Hitam</div>
+            </button>
+            <button type="button" data-pvp-cam="auto" class="setup-pvpcam-btn glass-btn rounded-2xl p-3 text-left">
+              <div class="text-base mb-1">🔄</div>
+              <div class="text-xs font-bold text-white">Auto-Flip Giliran</div>
+              <div class="text-[10px] text-slate-400">Kamera otomatis berputar tiap giliran</div>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <button id="btn-start-match" class="w-full gold-gradient-btn rounded-2xl py-3.5 text-sm tracking-wide uppercase">
+        MULAI PERTANDINGAN
+      </button>
+    </div>
+  </div>
+
+  <!-- MODAL AKHIR PERTANDINGAN (SKAKMAT / REMIS) -->
+  <div id="gameover-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 backdrop-blur-md p-4">
+    <div class="glass-panel w-full max-w-md rounded-3xl p-7 text-center modal-animate border border-amber-400/50 relative overflow-hidden">
+      <div class="absolute -top-20 left-1/2 -translate-x-1/2 w-64 h-64 bg-amber-500/15 rounded-full blur-3xl pointer-events-none"></div>
+      <div id="gameover-crown" class="text-5xl mb-3 drop-shadow-[0_0_20px_rgba(212,175,55,0.65)]">👑</div>
+      <p id="gameover-badge" class="inline-block px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-[11px] font-bold uppercase tracking-widest mb-2">
+        SKAKMAT
+      </p>
+      <h2 id="gameover-title" class="font-royal text-2xl sm:text-3xl font-extrabold text-white mb-2">Putih Menang!</h2>
+      <p id="gameover-desc" class="text-xs sm:text-sm text-slate-300 mb-6">Raja Hitam tidak memiliki langkah penyelamatan lagi.</p>
+
+      <div class="flex gap-3">
+        <button id="btn-review-board" class="flex-1 glass-btn rounded-2xl py-3 text-xs font-semibold text-slate-200">
+          Lihat Papan
+        </button>
+        <button id="btn-play-again" class="flex-1 gold-gradient-btn rounded-2xl py-3 text-xs font-bold uppercase tracking-wide">
+          Main Lagi
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * ============================================================================
+     * GRANDMASTER 3D CHESS — ENGINE UTAMA
+     * Arsitektur:
+     * 1. ProceduralAudioEngine : Synthesizer efek suara Web Audio API (tanpa file luar)
+     * 2. ProceduralTextures    : Generator tekstur marmer Carrara, Obsidian & Kayu Mahoni PBR
+     * 3. StauntonPieceFactory  : Pembuat geometri bidak catur Staunton beresolusi tinggi
+     * 4. ChessAIEngine         : Algoritma Minimax + Alpha-Beta Pruning + Piece-Square Tables
+     * 5. Grandmaster3DApp      : Pengelola scene Three.js, pencahayaan, animasi, partikel & HUD
+     * ============================================================================
+     */
+
+    // ============================================================================
+    // 1. PROCEDURAL WEB AUDIO SYNTHESIZER
+    // ============================================================================
+    class ProceduralAudioEngine {
+      constructor() {
+        this.ctx = null;
+        this.muted = false;
+      }
+
+      /** Inisialisasi AudioContext saat interaksi pertama pengguna */
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) {
+            this.ctx = new AudioCtx();
+          }
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume().catch(() => {});
+        }
+      }
+
+      toggleMute() {
+        this.muted = !this.muted;
+        return this.muted;
+      }
+
+      /** Suara klik lembut saat memilih bidak atau tombol */
+      playSelect() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(520, now);
+        osc.frequency.exponentialRampToValueAtTime(240, now + 0.06);
+
+        gain.gain.setValueAtTime(0.14, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.065);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.07);
+      }
+
+      /** Suara ketukan kayu/marmer realistis saat bidak mendarat di petak */
+      playMove() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+
+        const now = this.ctx.currentTime;
+
+        // 1. Resonansi bodi kayu/marmer (low-mid thud)
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(165, now);
+        osc.frequency.exponentialRampToValueAtTime(48, now + 0.14);
+
+        gain.gain.setValueAtTime(0.38, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.16);
+
+        // 2. Transient benturan keras marmer (filtered white noise burst)
+        const bufferSize = Math.floor(this.ctx.sampleRate * 0.035);
+        const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.25));
+        }
+
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = noiseBuffer;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(1400, now);
+        filter.Q.setValueAtTime(2.2, now);
+
+        const noiseGain = this.ctx.createGain();
+        noiseGain.gain.setValueAtTime(0.28, now);
+        noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
+
+        noise.connect(filter);
+        filter.connect(noiseGain);
+        noiseGain.connect(this.ctx.destination);
+        noise.start(now);
+      }
+
+      /** Efek benturan dramatis & kilau kristal saat memakan bidak lawan */
+      playCapture() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+
+        const now = this.ctx.currentTime;
+        this.playMove();
+
+        // Sub-bass impact
+        const sub = this.ctx.createOscillator();
+        const subGain = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(110, now);
+        sub.frequency.exponentialRampToValueAtTime(32, now + 0.28);
+        subGain.gain.setValueAtTime(0.45, now);
+        subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+        sub.connect(subGain);
+        subGain.connect(this.ctx.destination);
+        sub.start(now);
+        sub.stop(now + 0.31);
+
+        // Harmonik pecahan kristal/emas
+        [880, 1320, 1760].forEach((freq, idx) => {
+          const chime = this.ctx.createOscillator();
+          const cGain = this.ctx.createGain();
+          chime.type = 'sine';
+          chime.frequency.setValueAtTime(freq, now + idx * 0.02);
+          cGain.gain.setValueAtTime(0.08, now + idx * 0.02);
+          cGain.gain.exponentialRampToValueAtTime(0.001, now + 0.28 + idx * 0.03);
+          chime.connect(cGain);
+          cGain.connect(this.ctx.destination);
+          chime.start(now + idx * 0.02);
+          chime.stop(now + 0.32 + idx * 0.03);
+        });
+      }
+
+      /** Lonceng peringatan dramatis saat Skak (Check) */
+      playCheck() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+
+        const now = this.ctx.currentTime;
+        const notes = [659.25, 466.16];
+        notes.forEach((freq, i) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, now + i * 0.14);
+
+          gain.gain.setValueAtTime(0.001, now + i * 0.14);
+          gain.gain.linearRampToValueAtTime(0.24, now + i * 0.14 + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.14 + 0.55);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now + i * 0.14);
+          osc.stop(now + i * 0.14 + 0.58);
+        });
+      }
+
+      /** Fanfare kerajaan saat Skakmat / Kemenangan */
+      playCheckmate() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+
+        const now = this.ctx.currentTime;
+        const chord = [523.25, 659.25, 783.99, 1046.50];
+        chord.forEach((freq, i) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          const start = now + i * 0.11;
+          osc.frequency.setValueAtTime(freq, start);
+
+          gain.gain.setValueAtTime(0.001, start);
+          gain.gain.linearRampToValueAtTime(0.22, start + 0.03);
+          gain.gain.exponentialRampToValueAtTime(0.001, start + 1.15);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(start);
+          osc.stop(start + 1.2);
+        });
+      }
+    }
+
+    // ============================================================================
+    // 2. GENERATOR TEKSTUR PROSEDURAL PBR (MARMER & KAYU MAHONI)
+    // ============================================================================
+    class ProceduralTextures {
+      static hash2D(x, y) {
+        const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453123;
+        return n - Math.floor(n);
+      }
+
+      static valueNoise(x, y) {
+        const xi = Math.floor(x);
+        const yi = Math.floor(y);
+        const xf = x - xi;
+        const yf = y - yi;
+
+        const u = xf * xf * (3.0 - 2.0 * xf);
+        const v = yf * yf * (3.0 - 2.0 * yf);
+
+        const a = this.hash2D(xi, yi);
+        const b = this.hash2D(xi + 1, yi);
+        const c = this.hash2D(xi, yi + 1);
+        const d = this.hash2D(xi + 1, yi + 1);
+
+        return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+      }
+
+      static fbm(x, y, octaves = 4) {
+        let value = 0;
+        let amp = 0.5;
+        let freq = 1.0;
+        for (let i = 0; i < octaves; i++) {
+          value += amp * this.valueNoise(x * freq, y * freq);
+          freq *= 2.03;
+          amp *= 0.5;
+        }
+        return value;
+      }
+
+      /** Tekstur Marmer Putih Carrara atau Hitam Obsidian + Bump Map */
+      static createMarbleSet(isBlack = false) {
+        const size = 512;
+        const diffCanvas = document.createElement('canvas');
+        const bumpCanvas = document.createElement('canvas');
+        diffCanvas.width = bumpCanvas.width = size;
+        diffCanvas.height = bumpCanvas.height = size;
+
+        const dCtx = diffCanvas.getContext('2d');
+        const bCtx = bumpCanvas.getContext('2d');
+        const dImg = dCtx.createImageData(size, size);
+        const bImg = bCtx.createImageData(size, size);
+
+        const seedOffset = isBlack ? 41.7 : 13.2;
+
+        for (let y = 0; y < size; y++) {
+          for (let x = 0; x < size; x++) {
+            const nx = (x / size) * 4.5 + seedOffset;
+            const ny = (y / size) * 4.5 + seedOffset;
+
+            const turbulence = this.fbm(nx, ny, 5);
+            const veinWave = Math.sin((nx * 1.4 + ny * 0.9 + turbulence * 3.4) * Math.PI);
+            const vein = Math.pow(1.0 - Math.min(1.0, Math.abs(veinWave)), 7.0);
+
+            const fineVeinWave = Math.sin((nx * 3.1 - ny * 2.2 + turbulence * 4.5) * Math.PI);
+            const fineVein = Math.pow(1.0 - Math.min(1.0, Math.abs(fineVeinWave)), 12.0) * 0.45;
+
+            const idx = (y * size + x) * 4;
+            let r, g, b, bumpVal;
+
+            if (!isBlack) {
+              const base = 242 - turbulence * 14;
+              r = base - vein * 58 - fineVein * 25;
+              g = base - 3 - vein * 60 - fineVein * 28;
+              b = base - 8 - vein * 55 - fineVein * 34;
+              bumpVal = 225 - vein * 70;
+            } else {
+              const base = 18 + turbulence * 12;
+              r = base + vein * 155 + fineVein * 95;
+              g = base + 2 + vein * 145 + fineVein * 75;
+              b = base + 6 + vein * 138 + fineVein * 52;
+              bumpVal = 220 - vein * 65;
+            }
+
+            dImg.data[idx] = Math.max(0, Math.min(255, r));
+            dImg.data[idx + 1] = Math.max(0, Math.min(255, g));
+            dImg.data[idx + 2] = Math.max(0, Math.min(255, b));
+            dImg.data[idx + 3] = 255;
+
+            bImg.data[idx] = bImg.data[idx + 1] = bImg.data[idx + 2] = Math.max(0, Math.min(255, bumpVal));
+            bImg.data[idx + 3] = 255;
+          }
+        }
+
+        dCtx.putImageData(dImg, 0, 0);
+        bCtx.putImageData(bImg, 0, 0);
+
+        const map = new THREE.CanvasTexture(diffCanvas);
+        map.encoding = THREE.sRGBEncoding;
+        map.anisotropy = 8;
+
+        const bumpMap = new THREE.CanvasTexture(bumpCanvas);
+        bumpMap.anisotropy = 8;
+
+        return { map, bumpMap };
+      }
+
+      /** Tekstur Kayu Mahoni Kerajaan untuk Bingkai Papan */
+      static createMahoganyTexture() {
+        const size = 512;
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        const img = ctx.createImageData(size, size);
+
+        for (let y = 0; y < size; y++) {
+          for (let x = 0; x < size; x++) {
+            const nx = (x / size) * 2.0;
+            const ny = (y / size) * 14.0;
+            const grainNoise = this.fbm(nx * 3.0, ny * 0.6, 4);
+            const ring = Math.sin((ny + grainNoise * 4.2) * Math.PI);
+            const streak = (ring + 1) * 0.5;
+
+            const idx = (y * size + x) * 4;
+            img.data[idx] = Math.min(255, 58 + streak * 44);
+            img.data[idx + 1] = Math.min(255, 22 + streak * 20);
+            img.data[idx + 2] = Math.min(255, 14 + streak * 12);
+            img.data[idx + 3] = 255;
+          }
+        }
+
+        ctx.putImageData(img, 0, 0);
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.encoding = THREE.sRGBEncoding;
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.anisotropy = 8;
+        return tex;
+      }
+
+      /** Tekstur Label Koordinat (A-H, 1-8) Terukir Emas pada Bingkai Papan */
+      static createCoordinatePlaque(text) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 128;
+        canvas.height = 128;
+        const ctx = canvas.getContext('2d');
+
+        ctx.clearRect(0, 0, 128, 128);
+        ctx.font = '700 62px "Cinzel", Georgia, serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+        ctx.fillText(text, 64, 67);
+
+        const grad = ctx.createLinearGradient(0, 28, 0, 100);
+        grad.addColorStop(0, '#f6e29c');
+        grad.addColorStop(0.5, '#d4af37');
+        grad.addColorStop(1, '#9c781c');
+        ctx.fillStyle = grad;
+        ctx.fillText(text, 64, 64);
+
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.encoding = THREE.sRGBEncoding;
+        return tex;
+      }
+    }
+
+    // ============================================================================
+    // 3. STAUNTON 3D CHESS PIECE FACTORY (GEOMETRI DETAIL TINGGI)
+    // ============================================================================
+    class StauntonPieceFactory {
+      constructor() {
+        const whiteMarble = ProceduralTextures.createMarbleSet(false);
+        this.whiteBodyMat = new THREE.MeshStandardMaterial({
+          color: 0xfbf8f1,
+          map: whiteMarble.map,
+          bumpMap: whiteMarble.bumpMap,
+          bumpScale: 0.004,
+          roughness: 0.2,
+          metalness: 0.05
+        });
+
+        const blackMarble = ProceduralTextures.createMarbleSet(true);
+        this.blackBodyMat = new THREE.MeshStandardMaterial({
+          color: 0x1a1e26,
+          map: blackMarble.map,
+          bumpMap: blackMarble.bumpMap,
+          bumpScale: 0.005,
+          roughness: 0.16,
+          metalness: 0.16
+        });
+
+        this.goldAccentMat = new THREE.MeshStandardMaterial({
+          color: 0xe2be53,
+          roughness: 0.24,
+          metalness: 0.88
+        });
+
+        this.bronzeAccentMat = new THREE.MeshStandardMaterial({
+          color: 0xc8963e,
+          roughness: 0.26,
+          metalness: 0.85
+        });
+      }
+
+      buildLathe(pointsArray, segments = 48) {
+        const pts = pointsArray.map(([r, y]) => new THREE.Vector2(Math.max(0.001, r), y));
+        const geom = new THREE.LatheGeometry(pts, segments);
+        geom.computeVertexNormals();
+        return geom;
+      }
+
+      addMetallicRings(group, ringSpecs, isWhite) {
+        const mat = isWhite ? this.goldAccentMat : this.bronzeAccentMat;
+        ringSpecs.forEach(([radius, y, tube]) => {
+          const torus = new THREE.Mesh(
+            new THREE.TorusGeometry(radius, tube, 16, 48),
+            mat
+          );
+          torus.rotation.x = Math.PI / 2;
+          torus.position.y = y;
+          torus.castShadow = true;
+          group.add(torus);
+        });
+      }
+
+      createPiece(type, color) {
+        const isWhite = color === 'w';
+        const bodyMat = isWhite ? this.whiteBodyMat : this.blackBodyMat;
+        const accentMat = isWhite ? this.goldAccentMat : this.bronzeAccentMat;
+        const group = new THREE.Group();
+
+        switch (type) {
+          case 'p': {
+            const profile = [
+              [0.001, 0.0],
+              [0.29, 0.0],
+              [0.29, 0.05],
+              [0.26, 0.09],
+              [0.27, 0.13],
+              [0.22, 0.18],
+              [0.16, 0.34],
+              [0.12, 0.52],
+              [0.17, 0.56],
+              [0.17, 0.60],
+              [0.11, 0.62],
+              [0.155, 0.72],
+              [0.16, 0.79],
+              [0.12, 0.87],
+              [0.05, 0.91],
+              [0.001, 0.92]
+            ];
+            const mesh = new THREE.Mesh(this.buildLathe(profile), bodyMat);
+            mesh.castShadow = mesh.receiveShadow = true;
+            group.add(mesh);
+
+            this.addMetallicRings(group, [
+              [0.272, 0.11, 0.012],
+              [0.168, 0.58, 0.011]
+            ], isWhite);
+            break;
+          }
+
+          case 'r': {
+            const profile = [
+              [0.001, 0.0],
+              [0.33, 0.0],
+              [0.33, 0.06],
+              [0.29, 0.11],
+              [0.30, 0.16],
+              [0.24, 0.22],
+              [0.20, 0.48],
+              [0.17, 0.74],
+              [0.23, 0.80],
+              [0.23, 0.85],
+              [0.26, 0.90],
+              [0.26, 0.97],
+              [0.18, 0.97],
+              [0.18, 0.91],
+              [0.001, 0.91]
+            ];
+            const baseMesh = new THREE.Mesh(this.buildLathe(profile), bodyMat);
+            baseMesh.castShadow = baseMesh.receiveShadow = true;
+            group.add(baseMesh);
+
+            const numBattlements = 6;
+            const innerR = 0.185;
+            const outerR = 0.258;
+            const spanAngle = (Math.PI * 2) / numBattlements * 0.62;
+
+            for (let i = 0; i < numBattlements; i++) {
+              const startA = (i * Math.PI * 2) / numBattlements - spanAngle / 2;
+              const shape = new THREE.Shape();
+              shape.absarc(0, 0, outerR, startA, startA + spanAngle, false);
+              shape.absarc(0, 0, innerR, startA + spanAngle, startA, true);
+              shape.closePath();
+
+              const extrude = new THREE.ExtrudeGeometry(shape, {
+                depth: 0.13,
+                bevelEnabled: true,
+                bevelThickness: 0.012,
+                bevelSize: 0.01,
+                bevelSegments: 2,
+                curveSegments: 12
+              });
+              extrude.rotateX(-Math.PI / 2);
+              const merlon = new THREE.Mesh(extrude, bodyMat);
+              merlon.position.y = 0.96;
+              merlon.castShadow = merlon.receiveShadow = true;
+              group.add(merlon);
+            }
+
+            this.addMetallicRings(group, [
+              [0.305, 0.135, 0.014],
+              [0.232, 0.825, 0.013]
+            ], isWhite);
+            break;
+          }
+
+          case 'n': {
+            const baseProfile = [
+              [0.001, 0.0],
+              [0.33, 0.0],
+              [0.33, 0.06],
+              [0.29, 0.11],
+              [0.30, 0.16],
+              [0.24, 0.23],
+              [0.22, 0.30],
+              [0.24, 0.34],
+              [0.001, 0.34]
+            ];
+            const baseMesh = new THREE.Mesh(this.buildLathe(baseProfile), bodyMat);
+            baseMesh.castShadow = baseMesh.receiveShadow = true;
+            group.add(baseMesh);
+
+            const horseShape = new THREE.Shape();
+            horseShape.moveTo(-0.15, 0.32);
+            horseShape.bezierCurveTo(-0.19, 0.50, -0.21, 0.74, -0.14, 0.96);
+            horseShape.lineTo(-0.11, 1.15);
+            horseShape.lineTo(-0.04, 1.07);
+            horseShape.lineTo(0.01, 1.17);
+            horseShape.bezierCurveTo(0.08, 1.06, 0.16, 0.94, 0.24, 0.82);
+            horseShape.bezierCurveTo(0.27, 0.77, 0.24, 0.71, 0.18, 0.70);
+            horseShape.bezierCurveTo(0.12, 0.69, 0.07, 0.73, 0.03, 0.74);
+            horseShape.bezierCurveTo(0.09, 0.60, 0.16, 0.46, 0.15, 0.32);
+            horseShape.closePath();
+
+            const headGeom = new THREE.ExtrudeGeometry(horseShape, {
+              depth: 0.14,
+              bevelEnabled: true,
+              bevelThickness: 0.055,
+              bevelSize: 0.045,
+              bevelSegments: 5,
+              curveSegments: 24
+            });
+            headGeom.translate(0, 0, -0.07);
+            headGeom.rotateY(Math.PI / 2);
+            headGeom.computeVertexNormals();
+
+            const headMesh = new THREE.Mesh(headGeom, bodyMat);
+            headMesh.castShadow = headMesh.receiveShadow = true;
+            group.add(headMesh);
+
+            const maneGeom = new THREE.BoxGeometry(0.036, 0.56, 0.06);
+            const maneMesh = new THREE.Mesh(maneGeom, accentMat);
+            maneMesh.position.set(0, 0.68, 0.165);
+            maneMesh.rotation.x = 0.14;
+            group.add(maneMesh);
+
+            this.addMetallicRings(group, [
+              [0.305, 0.135, 0.014],
+              [0.236, 0.32, 0.013]
+            ], isWhite);
+
+            if (isWhite) {
+              group.rotation.y = Math.PI;
+            }
+            break;
+          }
+
+          case 'b': {
+            const profile = [
+              [0.001, 0.0],
+              [0.33, 0.0],
+              [0.33, 0.06],
+              [0.29, 0.11],
+              [0.30, 0.16],
+              [0.23, 0.23],
+              [0.17, 0.52],
+              [0.13, 0.78],
+              [0.19, 0.83],
+              [0.19, 0.88],
+              [0.13, 0.91],
+              [0.18, 1.03],
+              [0.19, 1.13],
+              [0.14, 1.24],
+              [0.06, 1.31],
+              [0.075, 1.35],
+              [0.04, 1.39],
+              [0.001, 1.40]
+            ];
+            const mesh = new THREE.Mesh(this.buildLathe(profile), bodyMat);
+            mesh.castShadow = mesh.receiveShadow = true;
+            group.add(mesh);
+
+            const sashGeom = new THREE.BoxGeometry(0.36, 0.026, 0.045);
+            const sashMesh = new THREE.Mesh(sashGeom, accentMat);
+            sashMesh.position.set(0, 1.13, 0.09);
+            sashMesh.rotation.z = -0.58;
+            group.add(sashMesh);
+
+            this.addMetallicRings(group, [
+              [0.305, 0.135, 0.014],
+              [0.192, 0.855, 0.013]
+            ], isWhite);
+            break;
+          }
+
+          case 'q': {
+            const profile = [
+              [0.001, 0.0],
+              [0.36, 0.0],
+              [0.36, 0.06],
+              [0.32, 0.12],
+              [0.33, 0.18],
+              [0.25, 0.26],
+              [0.19, 0.62],
+              [0.14, 0.98],
+              [0.21, 1.04],
+              [0.21, 1.09],
+              [0.16, 1.13],
+              [0.20, 1.18],
+              [0.15, 1.22],
+              [0.22, 1.44],
+              [0.17, 1.44],
+              [0.14, 1.51],
+              [0.06, 1.56],
+              [0.055, 1.60],
+              [0.001, 1.63]
+            ];
+            const mesh = new THREE.Mesh(this.buildLathe(profile), bodyMat);
+            mesh.castShadow = mesh.receiveShadow = true;
+            group.add(mesh);
+
+            const pearls = 8;
+            for (let i = 0; i < pearls; i++) {
+              const angle = (i * Math.PI * 2) / pearls;
+              const spike = new THREE.Mesh(new THREE.OctahedronGeometry(0.032, 1), accentMat);
+              spike.position.set(Math.cos(angle) * 0.205, 1.46, Math.sin(angle) * 0.205);
+              spike.castShadow = true;
+              group.add(spike);
+            }
+
+            const finial = new THREE.Mesh(new THREE.SphereGeometry(0.045, 20, 20), accentMat);
+            finial.position.y = 1.63;
+            finial.castShadow = true;
+            group.add(finial);
+
+            this.addMetallicRings(group, [
+              [0.335, 0.15, 0.015],
+              [0.212, 1.065, 0.014]
+            ], isWhite);
+            break;
+          }
+
+          case 'k': {
+            const profile = [
+              [0.001, 0.0],
+              [0.38, 0.0],
+              [0.38, 0.07],
+              [0.34, 0.13],
+              [0.35, 0.19],
+              [0.27, 0.28],
+              [0.20, 0.68],
+              [0.15, 1.08],
+              [0.23, 1.15],
+              [0.23, 1.21],
+              [0.17, 1.25],
+              [0.22, 1.31],
+              [0.16, 1.36],
+              [0.24, 1.56],
+              [0.18, 1.62],
+              [0.08, 1.66],
+              [0.001, 1.67]
+            ];
+            const mesh = new THREE.Mesh(this.buildLathe(profile), bodyMat);
+            mesh.castShadow = mesh.receiveShadow = true;
+            group.add(mesh);
+
+            const crossGroup = new THREE.Group();
+            const vBar = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.22, 0.052), accentMat);
+            const hBar = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.05, 0.052), accentMat);
+            hBar.position.y = 0.03;
+            vBar.castShadow = hBar.castShadow = true;
+            crossGroup.add(vBar, hBar);
+            crossGroup.position.y = 1.76;
+            group.add(crossGroup);
+
+            this.addMetallicRings(group, [
+              [0.355, 0.16, 0.016],
+              [0.232, 1.18, 0.015],
+              [0.242, 1.56, 0.013]
+            ], isWhite);
+            break;
+          }
+        }
+
+        return group;
+      }
+    }
+
+    // ============================================================================
+    // 4. MESIN AI CATUR (MINIMAX + ALPHA-BETA PRUNING + PIECE-SQUARE TABLES)
+    // ============================================================================
+    class ChessAIEngine {
+      constructor() {
+        this.pieceValues = {
+          p: 100,
+          n: 320,
+          b: 335,
+          r: 500,
+          q: 920,
+          k: 20000
+        };
+
+        this.pst = {
+          p: [
+             0,  0,  0,  0,  0,  0,  0,  0,
+            50, 50, 50, 50, 50, 50, 50, 50,
+            12, 12, 24, 34, 34, 24, 12, 12,
+             6,  6, 12, 28, 28, 12,  6,  6,
+             0,  0,  4, 24, 24,  4,  0,  0,
+             5, -4,-10,  0,  0,-10, -4,  5,
+             5, 10, 10,-22,-22, 10, 10,  5,
+             0,  0,  0,  0,  0,  0,  0,  0
+          ],
+          n: [
+            -50,-40,-30,-30,-30,-30,-40,-50,
+            -40,-20,  0,  4,  4,  0,-20,-40,
+            -30,  4, 14, 18, 18, 14,  4,-30,
+            -30,  6, 18, 24, 24, 18,  6,-30,
+            -30,  4, 18, 24, 24, 18,  4,-30,
+            -30,  6, 14, 18, 18, 14,  6,-30,
+            -40,-20,  0,  6,  6,  0,-20,-40,
+            -50,-40,-30,-30,-30,-30,-40,-50
+          ],
+          b: [
+            -20,-10,-10,-10,-10,-10,-10,-20,
+            -10,  4,  0,  0,  0,  0,  4,-10,
+            -10,  6, 10, 12, 12, 10,  6,-10,
+            -10,  6,  8, 14, 14,  8,  6,-10,
+            -10,  4, 12, 14, 14, 12,  4,-10,
+            -10, 10, 10, 10, 10, 10, 10,-10,
+            -10,  8,  0,  0,  0,  0,  8,-10,
+            -20,-10,-10,-10,-10,-10,-10,-20
+          ],
+          r: [
+              0,  0,  2,  6,  6,  2,  0,  0,
+              6, 12, 12, 12, 12, 12, 12,  6,
+             -5,  0,  0,  0,  0,  0,  0, -5,
+             -5,  0,  0,  0,  0,  0,  0, -5,
+             -5,  0,  0,  0,  0,  0,  0, -5,
+             -5,  0,  0,  0,  0,  0,  0, -5,
+             -5,  0,  0,  0,  0,  0,  0, -5,
+              0,  0,  2,  8,  8,  2,  0,  0
+          ],
+          q: [
+            -20,-10,-10, -5, -5,-10,-10,-20,
+            -10,  0,  2,  0,  0,  0,  0,-10,
+            -10,  2,  6,  6,  6,  6,  2,-10,
+             -5,  0,  6,  8,  8,  6,  0, -5,
+              0,  0,  6,  8,  8,  6,  0, -5,
+            -10,  6,  6,  6,  6,  6,  0,-10,
+            -10,  0,  6,  0,  0,  0,  0,-10,
+            -20,-10,-10, -5, -5,-10,-10,-20
+          ],
+          k: [
+            -30,-40,-40,-50,-50,-40,-40,-30,
+            -30,-40,-40,-50,-50,-40,-40,-30,
+            -30,-40,-40,-50,-50,-40,-40,-30,
+            -30,-40,-40,-50,-50,-40,-40,-30,
+            -20,-30,-30,-40,-40,-30,-30,-20,
+            -10,-20,-20,-20,-20,-20,-20,-10,
+             20, 22,  0,  0,  0,  0, 22, 20,
+             20, 32, 12,  0,  0, 12, 32, 20
+          ]
+        };
+      }
+
+      evaluateBoard(game, maximizingColor) {
+        if (game.in_checkmate()) {
+          return game.turn() === maximizingColor ? -99999 : 99999;
+        }
+        if (game.in_draw() || game.in_stalemate() || game.in_threefold_repetition()) {
+          return 0;
+        }
+
+        const board = game.board();
+        let score = 0;
+
+        for (let r = 0; r < 8; r++) {
+          for (let c = 0; c < 8; c++) {
+            const piece = board[r][c];
+            if (!piece) continue;
+
+            const baseVal = this.pieceValues[piece.type] || 0;
+            const table = this.pst[piece.type];
+            const pstIdx = piece.color === 'w' ? (r * 8 + c) : ((7 - r) * 8 + c);
+            const posBonus = table ? table[pstIdx] : 0;
+
+            const total = baseVal + posBonus;
+            score += (piece.color === maximizingColor) ? total : -total;
+          }
+        }
+        return score;
+      }
+
+      orderMoves(moves) {
+        return moves.sort((a, b) => {
+          let scoreA = 0;
+          let scoreB = 0;
+          if (a.captured) scoreA += 10 * this.pieceValues[a.captured] - this.pieceValues[a.piece];
+          if (b.captured) scoreB += 10 * this.pieceValues[b.captured] - this.pieceValues[b.piece];
+          if (a.promotion) scoreA += this.pieceValues[a.promotion];
+          if (b.promotion) scoreB += this.pieceValues[b.promotion];
+          return scoreB - scoreA;
+        });
+      }
+
+      minimax(game, depth, alpha, beta, isMaximizing, aiColor) {
+        if (depth === 0 || game.game_over()) {
+          return this.evaluateBoard(game, aiColor);
+        }
+
+        const moves = this.orderMoves(game.moves({ verbose: true }));
+
+        if (isMaximizing) {
+          let maxEval = -Infinity;
+          for (let i = 0; i < moves.length; i++) {
+            game.move(moves[i]);
+            const evalScore = this.minimax(game, depth - 1, alpha, beta, false, aiColor);
+            game.undo();
+            if (evalScore > maxEval) maxEval = evalScore;
+            if (evalScore > alpha) alpha = evalScore;
+            if (beta <= alpha) break;
+          }
+          return maxEval;
+        } else {
+          let minEval = Infinity;
+          for (let i = 0; i < moves.length; i++) {
+            game.move(moves[i]);
+            const evalScore = this.minimax(game, depth - 1, alpha, beta, true, aiColor);
+            game.undo();
+            if (evalScore < minEval) minEval = evalScore;
+            if (evalScore < beta) beta = evalScore;
+            if (beta <= alpha) break;
+          }
+          return minEval;
+        }
+      }
+
+      findBestMoveAsync(fen, difficulty, callback) {
+        setTimeout(() => {
+          const simGame = new Chess(fen);
+          const aiColor = simGame.turn();
+          const moves = this.orderMoves(simGame.moves({ verbose: true }));
+
+          if (moves.length === 0) {
+            callback(null);
+            return;
+          }
+
+          const depth = difficulty === 1 ? 1 : (difficulty === 2 ? 2 : 3);
+          const jitter = difficulty === 1 ? 45 : (difficulty === 2 ? 8 : 0);
+
+          let bestMove = moves[0];
+          let bestValue = -Infinity;
+          let alpha = -Infinity;
+          const beta = Infinity;
+
+          for (let i = 0; i < moves.length; i++) {
+            simGame.move(moves[i]);
+            let boardVal = this.minimax(simGame, depth - 1, alpha, beta, false, aiColor);
+            simGame.undo();
+
+            if (jitter > 0) {
+              boardVal += (Math.random() - 0.5) * jitter;
+            }
+
+            if (boardVal > bestValue) {
+              bestValue = boardVal;
+              bestMove = moves[i];
+            }
+            if (boardVal > alpha) {
+              alpha = boardVal;
+            }
+          }
+
+          callback(bestMove);
+        }, 60);
+      }
+    }
+
+    // ============================================================================
+    // 5. APLIKASI UTAMA GRANDMASTER 3D CHESS
+    // ============================================================================
+    class Grandmaster3DApp {
+      constructor() {
+        this.TILE_SIZE = 1.08;
+        this.BOARD_THICKNESS = 0.22;
+
+        // Konfigurasi Permainan
+        this.game = new Chess();
+        this.audio = new ProceduralAudioEngine();
+        this.ai = new ChessAIEngine();
+        this.pieceFactory = new StauntonPieceFactory();
+
+        this.gameMode = 'ai';
+        this.aiDifficulty = 3;
+        this.playerColor = 'w';
+        this.autoFlipPvP = false;
+        this.uiHidden = false;
+        this.activeCameraMode = 'white';
+
+        // State Interaksi & Animasi
+        this.selectedSquare = null;
+        this.hoveredSquare = null;
+        this.legalMovesForSelected = [];
+        this.lastMove = null;
+        this.hintSquares = [];
+        this.pendingPromotion = null;
+        this.activeAnimations = [];
+        this.captureParticles = [];
+        this.isAnimating = false;
+        this.isAIThinking = false;
+        this.cameraTransition = null;
+        this.cameraShake = 0;
+
+        // Peta Objek 3D
+        this.squareMeshes = {};
+        this.pieceMeshes = {};
+        this.indicatorGroup = new THREE.Group();
+        this.piecesGroup = new THREE.Group();
+        this.boardGroup = new THREE.Group();
+
+        this.raycaster = new THREE.Raycaster();
+        this.pointerNDC = new THREE.Vector2();
+        this.pointerDownPos = { x: 0, y: 0 };
+
+        // Pengaturan sementara modal Setup
+        this.tempSetup = {
+          mode: 'ai',
+          diff: 3,
+          color: 'w',
+          pvpCam: 'manual'
+        };
+
+        this.initThree();
+        this.buildEnvironmentAndLights();
+        this.buildChessBoard();
+        this.syncPiecesFromGame();
+        this.bindUIEvents();
+        this.updateHUD();
+
+        // Sembunyikan layar pemuatan setelah frame pertama siap (Modal Setup tetap tampil)
+        setTimeout(() => {
+          const loader = document.getElementById('loading-screen');
+          if (loader) {
+            loader.style.opacity = '0';
+            setTimeout(() => loader.remove(), 700);
+          }
+          this.setCameraPOV('white', true);
+        }, 350);
+
+        this.clock = new THREE.Clock();
+        this.animate();
+      }
+
+      /** Konversi notasi 'a1'..'h8' ke posisi dunia 3D (x, y, z) */
+      squareToWorld(square) {
+        const fileIdx = square.charCodeAt(0) - 97;
+        const rankIdx = parseInt(square[1], 10) - 1;
+        const x = (fileIdx - 3.5) * this.TILE_SIZE;
+        const z = (3.5 - rankIdx) * this.TILE_SIZE;
+        return new THREE.Vector3(x, this.BOARD_THICKNESS / 2, z);
+      }
+
+      /** Inisialisasi Renderer WebGL, Kamera, OrbitControls & Studio PMREM */
+      initThree() {
+        const container = document.getElementById('canvas-container');
+        const width = container.clientWidth || window.innerWidth;
+        const height = container.clientHeight || window.innerHeight;
+
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(0x07090e);
+        this.scene.fog = new THREE.FogExp2(0x07090e, 0.024);
+
+        this.camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 120);
+        this.camera.position.set(0, 9.2, 10.2);
+
+        this.renderer = new THREE.WebGLRenderer({
+          antialias: true,
+          powerPreference: 'high-performance'
+        });
+        this.renderer.setSize(width, height);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.15;
+        this.renderer.outputEncoding = THREE.sRGBEncoding;
+
+        container.innerHTML = '';
+        container.appendChild(this.renderer.domElement);
+
+        if (THREE.OrbitControls) {
+          this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+          this.controls.enableDamping = true;
+          this.controls.dampingFactor = 0.065;
+          this.controls.enablePan = false;
+          this.controls.minDistance = 5.5;
+          this.controls.maxDistance = 28.0;
+          this.controls.minPolarAngle = 0.08;
+          this.controls.maxPolarAngle = Math.PI * 0.44;
+          this.controls.target.set(0, 0, 0);
+
+          this.controls.addEventListener('start', () => {
+            this.cameraTransition = null;
+          });
+        }
+
+        // Studio Environment Reflection Map menggunakan PMREMGenerator
+        const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
+        pmremGenerator.compileEquirectangularShader();
+
+        const envScene = new THREE.Scene();
+        envScene.background = new THREE.Color(0x141824);
+
+        const topPanel = new THREE.Mesh(
+          new THREE.PlaneGeometry(24, 24),
+          new THREE.MeshBasicMaterial({ color: 0xfff3d6, side: THREE.DoubleSide })
+        );
+        topPanel.position.set(0, 12, 0);
+        topPanel.rotation.x = Math.PI / 2;
+        envScene.add(topPanel);
+
+        const goldPanel = new THREE.Mesh(
+          new THREE.PlaneGeometry(18, 12),
+          new THREE.MeshBasicMaterial({ color: 0xe6b85c, side: THREE.DoubleSide })
+        );
+        goldPanel.position.set(14, 4, 8);
+        goldPanel.lookAt(0, 0, 0);
+        envScene.add(goldPanel);
+
+        const coolPanel = new THREE.Mesh(
+          new THREE.PlaneGeometry(18, 12),
+          new THREE.MeshBasicMaterial({ color: 0x4b74b8, side: THREE.DoubleSide })
+        );
+        coolPanel.position.set(-14, 5, -9);
+        coolPanel.lookAt(0, 0, 0);
+        envScene.add(coolPanel);
+
+        const envRT = pmremGenerator.fromScene(envScene, 0.04);
+        this.scene.environment = envRT.texture;
+        pmremGenerator.dispose();
+      }
+
+      /** Membangun Pencahayaan Sinematik 3-Titik, Meja Alas & Partikel Debu Emas */
+      buildEnvironmentAndLights() {
+        const hemiLight = new THREE.HemisphereLight(0xfff4de, 0x161b29, 0.55);
+        this.scene.add(hemiLight);
+
+        // 1. Key Spotlight Utama dengan bayangan lembut resolusi tinggi
+        const keyLight = new THREE.SpotLight(0xfff1d6, 1.65);
+        keyLight.position.set(6.5, 14.5, 7.5);
+        keyLight.angle = Math.PI / 4;
+        keyLight.penumbra = 0.55;
+        keyLight.decay = 1.2;
+        keyLight.distance = 45;
+        keyLight.castShadow = true;
+        keyLight.shadow.mapSize.width = 2048;
+        keyLight.shadow.mapSize.height = 2048;
+        keyLight.shadow.camera.near = 4;
+        keyLight.shadow.camera.far = 30;
+        keyLight.shadow.bias = -0.0004;
+        this.scene.add(keyLight);
+
+        // 2. Warm Gold Rim Light
+        const warmRim = new THREE.DirectionalLight(0xffcb77, 0.65);
+        warmRim.position.set(9, 6, -8);
+        this.scene.add(warmRim);
+
+        // 3. Cool Sapphire Rim Light
+        const coolRim = new THREE.DirectionalLight(0x6ea8fe, 0.55);
+        coolRim.position.set(-9, 7, -9);
+        this.scene.add(coolRim);
+
+        // Meja Bundar Mewah di Bawah Papan
+        const tableMesh = new THREE.Mesh(
+          new THREE.CylinderGeometry(16, 16, 0.4, 64),
+          new THREE.MeshStandardMaterial({
+            color: 0x0b0e16,
+            roughness: 0.62,
+            metalness: 0.22
+          })
+        );
+        tableMesh.position.y = -0.45;
+        tableMesh.receiveShadow = true;
+        this.scene.add(tableMesh);
+
+        // Partikel Debu Emas Melayang di Udara
+        const dustCount = 150;
+        const positions = new Float32Array(dustCount * 3);
+        for (let i = 0; i < dustCount; i++) {
+          positions[i * 3] = (Math.random() - 0.5) * 18;
+          positions[i * 3 + 1] = 0.4 + Math.random() * 7.5;
+          positions[i * 3 + 2] = (Math.random() - 0.5) * 18;
+        }
+        const dustGeo = new THREE.BufferGeometry();
+        dustGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        const dustMat = new THREE.PointsMaterial({
+          color: 0xf6d365,
+          size: 0.05,
+          transparent: true,
+          opacity: 0.42,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
+        });
+        this.dustPoints = new THREE.Points(dustGeo, dustMat);
+        this.scene.add(this.dustPoints);
+      }
+
+      /** Membangun Papan Marmer Carrara & Obsidian + Bingkai Kayu Mahoni + Koordinat */
+      buildChessBoard() {
+        this.scene.add(this.boardGroup);
+        this.scene.add(this.indicatorGroup);
+        this.scene.add(this.piecesGroup);
+
+        const whiteSet = ProceduralTextures.createMarbleSet(false);
+        const blackSet = ProceduralTextures.createMarbleSet(true);
+
+        const tileGeo = new THREE.BoxGeometry(this.TILE_SIZE * 0.992, this.BOARD_THICKNESS, this.TILE_SIZE * 0.992);
+        const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+
+        for (let r = 0; r < 8; r++) {
+          for (let f = 0; f < 8; f++) {
+            const square = `${files[f]}${r + 1}`;
+            const isLight = (f + r) % 2 === 1;
+            const texSet = isLight ? whiteSet : blackSet;
+
+            const mat = new THREE.MeshStandardMaterial({
+              color: isLight ? 0xfaf7f0 : 0x1a1e26,
+              map: texSet.map,
+              bumpMap: texSet.bumpMap,
+              bumpScale: 0.003,
+              roughness: isLight ? 0.22 : 0.18,
+              metalness: isLight ? 0.04 : 0.1
+            });
+
+            const mesh = new THREE.Mesh(tileGeo, mat);
+            const pos = this.squareToWorld(square);
+            mesh.position.set(pos.x, 0, pos.z);
+            mesh.receiveShadow = true;
+            mesh.userData = { square, isLight };
+
+            this.boardGroup.add(mesh);
+            this.squareMeshes[square] = mesh;
+          }
+        }
+
+        // Bingkai Kayu Mahoni & List Emas
+        const innerSpan = this.TILE_SIZE * 8;
+        const borderWidth = 0.66;
+        const outerSpan = innerSpan + borderWidth * 2;
+        const mahoganyTex = ProceduralTextures.createMahoganyTexture();
+
+        const mahoganyMat = new THREE.MeshStandardMaterial({
+          map: mahoganyTex,
+          roughness: 0.34,
+          metalness: 0.12
+        });
+
+        const goldTrimMat = new THREE.MeshStandardMaterial({
+          color: 0xd4af37,
+          roughness: 0.24,
+          metalness: 0.88
+        });
+
+        // Alas dasar mahoni
+        const baseFrame = new THREE.Mesh(
+          new THREE.BoxGeometry(outerSpan + 0.2, 0.22, outerSpan + 0.2),
+          mahoganyMat
+        );
+        baseFrame.position.y = -0.18;
+        baseFrame.receiveShadow = baseFrame.castShadow = true;
+        this.boardGroup.add(baseFrame);
+
+        // Alas nat (grout) gelap di bawah celah petak marmer (tidak menutupi permukaan petak)
+        const groutBed = new THREE.Mesh(
+          new THREE.BoxGeometry(innerSpan + 0.02, this.BOARD_THICKNESS - 0.014, innerSpan + 0.02),
+          new THREE.MeshStandardMaterial({ color: 0x0b0d13, roughness: 0.7, metalness: 0.1 })
+        );
+        groutBed.position.y = -0.007;
+        groutBed.receiveShadow = true;
+        this.boardGroup.add(groutBed);
+
+        // 4 List emas tipis di sekeliling luar petak marmer (tanpa menutupi 64 petak)
+        const trimThickness = 0.055;
+        const trimHeight = this.BOARD_THICKNESS + 0.006;
+        const trimOffset = innerSpan / 2 + trimThickness / 2;
+        const trimBars = [
+          { w: innerSpan + trimThickness * 2, d: trimThickness, x: 0, z: trimOffset },
+          { w: innerSpan + trimThickness * 2, d: trimThickness, x: 0, z: -trimOffset },
+          { w: trimThickness, d: innerSpan, x: -trimOffset, z: 0 },
+          { w: trimThickness, d: innerSpan, x: trimOffset, z: 0 }
+        ];
+        trimBars.forEach(tb => {
+          const trimMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(tb.w, trimHeight, tb.d),
+            goldTrimMat
+          );
+          trimMesh.position.set(tb.x, 0.002, tb.z);
+          trimMesh.receiveShadow = true;
+          this.boardGroup.add(trimMesh);
+        });
+
+        // 4 Sisi Bingkai Mahoni dengan Koordinat Terukir Emas (A-H & 1-8)
+        const offset = innerSpan / 2 + borderWidth / 2;
+        const sideBars = [
+          { w: outerSpan, d: borderWidth, x: 0, z: offset },
+          { w: outerSpan, d: borderWidth, x: 0, z: -offset },
+          { w: borderWidth, d: innerSpan, x: -offset, z: 0 },
+          { w: borderWidth, d: innerSpan, x: offset, z: 0 }
+        ];
+        sideBars.forEach(b => {
+          const bar = new THREE.Mesh(
+            new THREE.BoxGeometry(b.w, this.BOARD_THICKNESS + 0.018, b.d),
+            mahoganyMat
+          );
+          bar.position.set(b.x, 0.004, b.z);
+          bar.castShadow = bar.receiveShadow = true;
+          this.boardGroup.add(bar);
+        });
+
+        // Plakat Koordinat A-H (Depan & Belakang) dan 1-8 (Kiri & Kanan)
+        const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+        const numbers = ['1', '2', '3', '4', '5', '6', '7', '8'];
+        const plaqueGeo = new THREE.PlaneGeometry(0.42, 0.42);
+
+        for (let i = 0; i < 8; i++) {
+          const coordPos = (i - 3.5) * this.TILE_SIZE;
+
+          // Huruf A-H
+          const letterTex = ProceduralTextures.createCoordinatePlaque(letters[i]);
+          const letterMat = new THREE.MeshBasicMaterial({ map: letterTex, transparent: true });
+
+          const frontPlaque = new THREE.Mesh(plaqueGeo, letterMat);
+          frontPlaque.rotation.x = -Math.PI / 2;
+          frontPlaque.position.set(coordPos, this.BOARD_THICKNESS / 2 + 0.015, offset);
+          this.boardGroup.add(frontPlaque);
+
+          const backPlaque = new THREE.Mesh(plaqueGeo, letterMat);
+          backPlaque.rotation.x = -Math.PI / 2;
+          backPlaque.rotation.z = Math.PI;
+          backPlaque.position.set(coordPos, this.BOARD_THICKNESS / 2 + 0.015, -offset);
+          this.boardGroup.add(backPlaque);
+
+          // Angka 1-8
+          const numTex = ProceduralTextures.createCoordinatePlaque(numbers[i]);
+          const numMat = new THREE.MeshBasicMaterial({ map: numTex, transparent: true });
+          const rankZ = (3.5 - i) * this.TILE_SIZE;
+
+          const leftPlaque = new THREE.Mesh(plaqueGeo, numMat);
+          leftPlaque.rotation.x = -Math.PI / 2;
+          leftPlaque.position.set(-offset, this.BOARD_THICKNESS / 2 + 0.015, rankZ);
+          this.boardGroup.add(leftPlaque);
+
+          const rightPlaque = new THREE.Mesh(plaqueGeo, numMat);
+          rightPlaque.rotation.x = -Math.PI / 2;
+          rightPlaque.rotation.z = Math.PI;
+          rightPlaque.position.set(offset, this.BOARD_THICKNESS / 2 + 0.015, rankZ);
+          this.boardGroup.add(rightPlaque);
+        }
+
+        // Cincin Penanda Bidak Terpilih (Emas)
+        const selGeo = new THREE.RingGeometry(0.36, 0.46, 36);
+        selGeo.rotateX(-Math.PI / 2);
+        this.selectionRing = new THREE.Mesh(
+          selGeo,
+          new THREE.MeshBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.92, side: THREE.DoubleSide })
+        );
+        this.selectionRing.visible = false;
+        this.scene.add(this.selectionRing);
+
+        // Cincin Peringatan Skak di Bawah Raja (Merah Berdenyut)
+        const chkGeo = new THREE.RingGeometry(0.38, 0.50, 36);
+        chkGeo.rotateX(-Math.PI / 2);
+        this.checkRing = new THREE.Mesh(
+          chkGeo,
+          new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.92, side: THREE.DoubleSide })
+        );
+        this.checkRing.visible = false;
+        this.scene.add(this.checkRing);
+      }
+
+      /** Menyinkronkan seluruh bidak 3D di atas papan dari status Chess.js */
+      syncPiecesFromGame() {
+        while (this.piecesGroup.children.length > 0) {
+          this.piecesGroup.remove(this.piecesGroup.children[0]);
+        }
+        this.pieceMeshes = {};
+
+        const board = this.game.board();
+        const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+
+        for (let r = 0; r < 8; r++) {
+          for (let f = 0; f < 8; f++) {
+            const cell = board[r][f];
+            if (cell) {
+              const square = `${files[f]}${8 - r}`;
+              const pieceMesh = this.pieceFactory.createPiece(cell.type, cell.color);
+              const pos = this.squareToWorld(square);
+              pieceMesh.position.copy(pos);
+              pieceMesh.userData = { square, type: cell.type, color: cell.color };
+
+              this.piecesGroup.add(pieceMesh);
+              this.pieceMeshes[square] = pieceMesh;
+            }
+          }
+        }
+
+        this.updateBoardHighlights();
+      }
+
+      /** Memperbarui indikator petak legal, langkah terakhir, petunjuk & skak */
+      updateBoardHighlights() {
+        // Bersihkan indikator langkah legal sebelumnya
+        while (this.indicatorGroup.children.length > 0) {
+          this.indicatorGroup.remove(this.indicatorGroup.children[0]);
+        }
+
+        // Reset warna emissive semua petak
+        Object.values(this.squareMeshes).forEach(tile => {
+          tile.material.emissive.setHex(0x000000);
+          tile.material.emissiveIntensity = 0;
+        });
+
+        // Sorot langkah terakhir
+        if (this.lastMove) {
+          [this.lastMove.from, this.lastMove.to].forEach(sq => {
+            if (this.squareMeshes[sq]) {
+              this.squareMeshes[sq].material.emissive.setHex(0xd4af37);
+              this.squareMeshes[sq].material.emissiveIntensity = 0.25;
+            }
+          });
+        }
+
+        // Sorot petunjuk langkah terbaik
+        if (this.hintSquares.length > 0) {
+          this.hintSquares.forEach(sq => {
+            if (this.squareMeshes[sq]) {
+              this.squareMeshes[sq].material.emissive.setHex(0x38bdf8);
+              this.squareMeshes[sq].material.emissiveIntensity = 0.45;
+            }
+          });
+        }
+
+        // Cincin bidak terpilih
+        if (this.selectedSquare && this.pieceMeshes[this.selectedSquare]) {
+          const pos = this.squareToWorld(this.selectedSquare);
+          this.selectionRing.position.set(pos.x, this.BOARD_THICKNESS / 2 + 0.012, pos.z);
+          this.selectionRing.visible = true;
+        } else {
+          this.selectionRing.visible = false;
+        }
+
+        // Indikator langkah legal untuk bidak terpilih
+        const dotGeo = new THREE.CylinderGeometry(0.14, 0.16, 0.025, 24);
+        const dotMat = new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.88 });
+
+        const capGeo = new THREE.RingGeometry(0.36, 0.46, 32);
+        capGeo.rotateX(-Math.PI / 2);
+        const capMat = new THREE.MeshBasicMaterial({ color: 0xf43f5e, transparent: true, opacity: 0.92, side: THREE.DoubleSide });
+
+        this.legalMovesForSelected.forEach(move => {
+          const pos = this.squareToWorld(move.to);
+          const isCap = Boolean(move.captured);
+          const marker = new THREE.Mesh(isCap ? capGeo : dotGeo, isCap ? capMat : dotMat);
+          marker.position.set(pos.x, this.BOARD_THICKNESS / 2 + 0.014, pos.z);
+          marker.userData = { targetSquare: move.to };
+          this.indicatorGroup.add(marker);
+        });
+
+        // Cincin Skak pada Raja yang terancam
+        if (this.game.in_check()) {
+          const turn = this.game.turn();
+          const kingSq = Object.keys(this.pieceMeshes).find(sq => {
+            const ud = this.pieceMeshes[sq].userData;
+            return ud.type === 'k' && ud.color === turn;
+          });
+          if (kingSq) {
+            const kPos = this.squareToWorld(kingSq);
+            this.checkRing.position.set(kPos.x, this.BOARD_THICKNESS / 2 + 0.014, kPos.z);
+            this.checkRing.visible = true;
+          }
+        } else {
+          this.checkRing.visible = false;
+        }
+      }
+
+      /** Efek ledakan partikel emas saat memakan bidak */
+      spawnCaptureExplosion(worldPos, capturedColor) {
+        const count = 36;
+        const secondaryColor = capturedColor === 'w' ? 0xfff3c4 : 0xf97316;
+
+        for (let i = 0; i < count; i++) {
+          const spark = new THREE.Mesh(
+            new THREE.OctahedronGeometry(0.035 + Math.random() * 0.025, 0),
+            new THREE.MeshBasicMaterial({
+              color: i % 2 === 0 ? 0xfacc15 : secondaryColor,
+              transparent: true,
+              opacity: 1
+            })
+          );
+          spark.position.copy(worldPos);
+          spark.position.y += 0.42;
+
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 1.5 + Math.random() * 3.0;
+          const vy = 2.4 + Math.random() * 3.4;
+
+          this.scene.add(spark);
+          this.captureParticles.push({
+            mesh: spark,
+            vx: Math.cos(angle) * speed,
+            vy,
+            vz: Math.sin(angle) * speed,
+            life: 1.0
+          });
+        }
+      }
+
+      /** Menjalankan langkah catur resmi beserta animasi 3D */
+      executeMove(moveObj) {
+        const moveResult = this.game.move(moveObj);
+        if (!moveResult) return false;
+
+        this.selectedSquare = null;
+        this.legalMovesForSelected = [];
+        this.hintSquares = [];
+        this.lastMove = { from: moveResult.from, to: moveResult.to };
+
+        const movingMesh = this.pieceMeshes[moveResult.from];
+        const startPos = this.squareToWorld(moveResult.from);
+        const endPos = this.squareToWorld(moveResult.to);
+
+        // Tangani bidak yang dimakan (termasuk En Passant)
+        let capturedSq = moveResult.to;
+        if (moveResult.flags.includes('e')) {
+          const rank = moveResult.color === 'w' ? '5' : '4';
+          capturedSq = `${moveResult.to[0]}${rank}`;
+        }
+
+        if (moveResult.captured && this.pieceMeshes[capturedSq]) {
+          const victimMesh = this.pieceMeshes[capturedSq];
+          this.spawnCaptureExplosion(victimMesh.position, victimMesh.userData.color);
+          this.piecesGroup.remove(victimMesh);
+          delete this.pieceMeshes[capturedSq];
+          this.cameraShake = 0.08;
+          this.audio.playCapture();
+        } else {
+          this.audio.playMove();
+        }
+
+        delete this.pieceMeshes[moveResult.from];
+
+        // Tangani Promosi Pion
+        if (moveResult.promotion) {
+          if (movingMesh) this.piecesGroup.remove(movingMesh);
+          const promotedMesh = this.pieceFactory.createPiece(moveResult.promotion, moveResult.color);
+          promotedMesh.position.copy(startPos);
+          promotedMesh.userData = { square: moveResult.to, type: moveResult.promotion, color: moveResult.color };
+          this.piecesGroup.add(promotedMesh);
+          this.pieceMeshes[moveResult.to] = promotedMesh;
+          this.queuePieceAnimation(promotedMesh, startPos, endPos, true);
+        } else if (movingMesh) {
+          movingMesh.userData.square = moveResult.to;
+          this.pieceMeshes[moveResult.to] = movingMesh;
+          const isJump = moveResult.piece === 'n' || Boolean(moveResult.captured);
+          this.queuePieceAnimation(movingMesh, startPos, endPos, isJump);
+        }
+
+        // Tangani Rokade (Castling)
+        if (moveResult.flags.includes('k') || moveResult.flags.includes('q')) {
+          const rank = moveResult.color === 'w' ? '1' : '8';
+          const rookFrom = moveResult.flags.includes('k') ? `h${rank}` : `a${rank}`;
+          const rookTo = moveResult.flags.includes('k') ? `f${rank}` : `d${rank}`;
+          const rookMesh = this.pieceMeshes[rookFrom];
+          if (rookMesh) {
+            delete this.pieceMeshes[rookFrom];
+            rookMesh.userData.square = rookTo;
+            this.pieceMeshes[rookTo] = rookMesh;
+            this.queuePieceAnimation(rookMesh, this.squareToWorld(rookFrom), this.squareToWorld(rookTo), true);
+          }
+        }
+
+        this.updateBoardHighlights();
+        this.updateHUD();
+        return true;
+      }
+
+      /** Menambahkan animasi perpindahan bidak & mengecek status lanjutan setelah mendarat */
+      queuePieceAnimation(mesh, startPos, endPos, isArcJump) {
+        this.isAnimating = true;
+        this.activeAnimations.push({
+          mesh,
+          startPos: startPos.clone(),
+          endPos: endPos.clone(),
+          isArcJump,
+          progress: 0,
+          duration: isArcJump ? 0.38 : 0.28,
+          onComplete: () => {
+            if (this.activeAnimations.length > 0) return;
+
+            if (this.game.in_checkmate()) {
+              this.audio.playCheckmate();
+              this.showGameOverModal();
+              return;
+            } else if (this.game.in_draw() || this.game.in_stalemate() || this.game.insufficient_material()) {
+              this.showGameOverModal();
+              return;
+            } else if (this.game.in_check()) {
+              this.audio.playCheck();
+              this.showToast('SKAK! Raja dalam ancaman!', '⚠️');
+            }
+
+            if (this.gameMode === 'pvp' && this.autoFlipPvP && !this.game.game_over()) {
+              const nextPOV = this.game.turn() === 'w' ? 'white' : 'black';
+              this.setCameraPOV(nextPOV, false);
+            }
+
+            if (this.gameMode === 'ai' && this.game.turn() !== this.playerColor && !this.game.game_over()) {
+              this.triggerAIMove();
+            }
+          }
+        });
+      }
+
+      /** Memanggil AI Minimax Alpha-Beta secara non-blocking */
+      triggerAIMove() {
+        if (this.isAIThinking || this.game.game_over()) return;
+        this.isAIThinking = true;
+        this.updateHUD();
+
+        setTimeout(() => {
+          this.ai.findBestMoveAsync(this.game.fen(), this.aiDifficulty, (bestMove) => {
+            this.isAIThinking = false;
+            if (bestMove) {
+              this.executeMove({
+                from: bestMove.from,
+                to: bestMove.to,
+                promotion: bestMove.promotion || 'q'
+              });
+            }
+            this.updateHUD();
+          });
+        }, 320);
+      }
+
+      /** Menangani klik atau ketukan pada papan 3D */
+      handleBoardTap(clientX, clientY) {
+        if (this.isAnimating || this.isAIThinking || this.game.game_over()) return;
+        if (this.gameMode === 'ai' && this.game.turn() !== this.playerColor) return;
+
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        this.pointerNDC.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+        this.pointerNDC.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+
+        this.raycaster.setFromCamera(this.pointerNDC, this.camera);
+        const targets = [
+          ...Object.values(this.squareMeshes),
+          ...Object.values(this.pieceMeshes),
+          ...this.indicatorGroup.children
+        ];
+
+        const hits = this.raycaster.intersectObjects(targets, true);
+        if (hits.length === 0) return;
+
+        let obj = hits[0].object;
+        while (obj && !obj.userData.square && !obj.userData.targetSquare) {
+          obj = obj.parent;
+        }
+        if (!obj) return;
+
+        const tappedSquare = obj.userData.targetSquare || obj.userData.square;
+        if (!tappedSquare) return;
+
+        // 1. Jika petak adalah tujuan langkah legal
+        const chosenMove = this.legalMovesForSelected.find(m => m.to === tappedSquare);
+        if (chosenMove) {
+          if (chosenMove.flags.includes('p')) {
+            this.pendingPromotion = { from: chosenMove.from, to: chosenMove.to };
+            const promoModal = document.getElementById('promotion-modal');
+            promoModal.classList.remove('hidden');
+            promoModal.classList.add('flex');
+            return;
+          }
+          this.executeMove({ from: chosenMove.from, to: chosenMove.to });
+          return;
+        }
+
+        // 2. Jika memilih bidak milik giliran aktif
+        const piece = this.game.get(tappedSquare);
+        if (piece && piece.color === this.game.turn()) {
+          this.selectedSquare = tappedSquare;
+          this.legalMovesForSelected = this.game.moves({ square: tappedSquare, verbose: true });
+          this.audio.playSelect();
+          this.updateBoardHighlights();
+        } else {
+          this.selectedSquare = null;
+          this.legalMovesForSelected = [];
+          this.updateBoardHighlights();
+        }
+      }
+
+      /** Mengubah kursor pointer saat diarahkan ke bidak aktif atau petak tujuan legal */
+      handlePointerHover(clientX, clientY) {
+        const dom = this.renderer.domElement;
+        if (this.isAnimating || this.isAIThinking || this.game.game_over() ||
+            (this.gameMode === 'ai' && this.game.turn() !== this.playerColor)) {
+          dom.style.cursor = 'grab';
+          return;
+        }
+
+        const rect = dom.getBoundingClientRect();
+        this.pointerNDC.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+        this.pointerNDC.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+
+        this.raycaster.setFromCamera(this.pointerNDC, this.camera);
+        const targets = [
+          ...Object.values(this.squareMeshes),
+          ...Object.values(this.pieceMeshes),
+          ...this.indicatorGroup.children
+        ];
+
+        const hits = this.raycaster.intersectObjects(targets, true);
+        if (hits.length === 0) {
+          dom.style.cursor = 'grab';
+          return;
+        }
+
+        let obj = hits[0].object;
+        while (obj && !obj.userData.square && !obj.userData.targetSquare) {
+          obj = obj.parent;
+        }
+        const sq = obj ? (obj.userData.targetSquare || obj.userData.square) : null;
+        if (!sq) {
+          dom.style.cursor = 'grab';
+          return;
+        }
+
+        const isLegalTarget = this.legalMovesForSelected.some(m => m.to === sq);
+        const piece = this.game.get(sq);
+        const isOwnPiece = piece && piece.color === this.game.turn();
+
+        dom.style.cursor = (isLegalTarget || isOwnPiece) ? 'pointer' : 'grab';
+      }
+
+      /** Transisi Kamera Melingkar (Orbital Sweep) ke POV Putih, POV Hitam, atau Tampilan Atas */
+      setCameraPOV(mode, instant = false) {
+        this.activeCameraMode = mode;
+        const targetLookAt = new THREE.Vector3(0, 0, 0);
+
+        // Penyesuaian jarak otomatis agar seluruh papan muat utuh di layar HP portrait maupun PC widescreen
+        const aspect = this.camera.aspect || (window.innerWidth / Math.max(1, window.innerHeight));
+        const portraitScale = aspect < 1.05 ? Math.min(1.82, 1.06 / Math.max(0.46, aspect)) : 1.0;
+
+        const curOffset = this.camera.position.clone().sub(
+          this.controls ? this.controls.target : targetLookAt
+        );
+        const startR = Math.max(0.5, Math.hypot(curOffset.x, curOffset.z));
+        const startTheta = Math.atan2(curOffset.x, curOffset.z);
+        const startY = this.camera.position.y;
+
+        let endR, endTheta, endY;
+
+        if (mode === 'black') {
+          endR = 10.2 * portraitScale;
+          endTheta = Math.PI;
+          endY = 9.2 * portraitScale;
+        } else if (mode === 'top') {
+          endR = 1.65 * portraitScale;
+          endTheta = startTheta;
+          endY = 13.8 * portraitScale;
+        } else {
+          endR = 10.2 * portraitScale;
+          endTheta = 0;
+          endY = 9.2 * portraitScale;
+        }
+
+        // Hitung selisih sudut terpendek agar kamera berputar memutari papan (bukan lewat atas kepala)
+        let deltaTheta = ((endTheta - startTheta + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+        if (Math.abs(Math.abs(deltaTheta) - Math.PI) < 0.001) {
+          deltaTheta = mode === 'black' ? Math.PI : -Math.PI;
+        }
+
+        if (instant) {
+          this.cameraTransition = null;
+          this.camera.position.set(
+            Math.sin(endTheta) * endR,
+            endY,
+            Math.cos(endTheta) * endR
+          );
+          if (this.controls) {
+            this.controls.enabled = true;
+            this.controls.target.copy(targetLookAt);
+            this.controls.update();
+          }
+          this.updateCameraPOVButtons();
+          return;
+        }
+
+        if (this.controls) {
+          this.controls.enabled = false;
+        }
+
+        this.cameraTransition = {
+          startR,
+          endR,
+          startTheta,
+          deltaTheta,
+          startY,
+          endY,
+          startTarget: this.controls ? this.controls.target.clone() : new THREE.Vector3(0, 0, 0),
+          endTarget: targetLookAt,
+          elapsed: 0,
+          duration: 0.72
+        };
+        this.updateCameraPOVButtons();
+      }
+
+      /** Menyoroti tombol POV aktif berdasarkan sisi Z kamera & mode */
+      updateCameraPOVButtons() {
+        const btnWhite = document.getElementById('btn-pov-white');
+        const btnBlack = document.getElementById('btn-pov-black');
+        const btnTop = document.getElementById('btn-pov-top');
+        const btnAuto = document.getElementById('btn-pov-autoflip');
+        if (!btnWhite || !btnBlack || !btnTop) return;
+
+        [btnWhite, btnBlack, btnTop].forEach(btn => btn.classList.remove('pov-btn-active'));
+
+        const horizDist = Math.hypot(this.camera.position.x, this.camera.position.z);
+        const isTopAngle = this.camera.position.y > 12.2 && horizDist < 3.0;
+        if (this.activeCameraMode === 'top' || isTopAngle) {
+          btnTop.classList.add('pov-btn-active');
+        } else if (this.activeCameraMode === 'black' || (this.activeCameraMode === 'free' && this.camera.position.z < 0)) {
+          btnBlack.classList.add('pov-btn-active');
+        } else if (this.activeCameraMode === 'white' || (this.activeCameraMode === 'free' && this.camera.position.z >= 0)) {
+          btnWhite.classList.add('pov-btn-active');
+        }
+
+        if (btnAuto) {
+          if (this.gameMode === 'pvp') {
+            btnAuto.classList.remove('hidden');
+            btnAuto.classList.add('flex');
+            btnAuto.classList.toggle('pov-btn-active', this.autoFlipPvP);
+          } else {
+            btnAuto.classList.add('hidden');
+            btnAuto.classList.remove('flex');
+          }
+        }
+      }
+
+      /** Sembunyikan / Tampilkan seluruh elemen HUD untuk mode fokus penuh */
+      toggleUIVisibility(forceHide = null) {
+        this.uiHidden = forceHide !== null ? forceHide : !this.uiHidden;
+        const hudLayer = document.getElementById('hud-layer');
+        const restoreBtn = document.getElementById('btn-restore-ui');
+
+        if (this.uiHidden) {
+          hudLayer.classList.add('opacity-0', 'scale-[0.99]');
+          hudLayer.classList.remove('opacity-100', 'scale-100');
+          restoreBtn.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-[-8px]');
+          restoreBtn.classList.add('opacity-100', 'pointer-events-auto', 'translate-y-0');
+        } else {
+          hudLayer.classList.remove('opacity-0', 'scale-[0.99]');
+          hudLayer.classList.add('opacity-100', 'scale-100');
+          restoreBtn.classList.add('opacity-0', 'pointer-events-none', 'translate-y-[-8px]');
+          restoreBtn.classList.remove('opacity-100', 'pointer-events-auto', 'translate-y-0');
+        }
+      }
+
+      /** Urungkan Langkah (Undo) */
+      undoMove() {
+        if (this.isAnimating || this.isAIThinking) return;
+        const hist = this.game.history();
+        if (hist.length === 0) {
+          this.showToast('Belum ada langkah untuk diurungkan', 'ℹ️');
+          return;
+        }
+
+        if (this.gameMode === 'ai' && hist.length >= 2) {
+          this.game.undo();
+          this.game.undo();
+        } else {
+          this.game.undo();
+        }
+
+        this.selectedSquare = null;
+        this.legalMovesForSelected = [];
+        this.hintSquares = [];
+
+        const verboseHist = this.game.history({ verbose: true });
+        this.lastMove = verboseHist.length > 0
+          ? { from: verboseHist[verboseHist.length - 1].from, to: verboseHist[verboseHist.length - 1].to }
+          : null;
+
+        this.syncPiecesFromGame();
+        this.updateHUD();
+        this.audio.playSelect();
+        this.showToast('Langkah diurungkan', '↩️');
+      }
+
+      /** Petunjuk Langkah Terbaik dari AI */
+      showHint() {
+        if (this.isAnimating || this.isAIThinking || this.game.game_over()) return;
+        if (this.gameMode === 'ai' && this.game.turn() !== this.playerColor) return;
+
+        this.showToast('Menganalisis posisi papan...', '💡');
+        this.ai.findBestMoveAsync(this.game.fen(), 2, (bestMove) => {
+          if (bestMove) {
+            this.hintSquares = [bestMove.from, bestMove.to];
+            this.updateBoardHighlights();
+            this.audio.playSelect();
+            this.showToast(`Saran Langkah: ${bestMove.from.toUpperCase()} → ${bestMove.to.toUpperCase()}`, '💡');
+          }
+        });
+      }
+
+      /** Memulai Pertandingan Baru sesuai pengaturan */
+      startNewMatch(mode, difficulty, playerColor, pvpCamMode = 'manual') {
+        this.gameMode = mode;
+        this.aiDifficulty = difficulty;
+        this.playerColor = playerColor;
+        this.autoFlipPvP = (mode === 'pvp' && pvpCamMode === 'auto');
+
+        this.game.reset();
+        this.selectedSquare = null;
+        this.legalMovesForSelected = [];
+        this.lastMove = null;
+        this.hintSquares = [];
+        this.pendingPromotion = null;
+        this.activeAnimations = [];
+        this.isAnimating = false;
+        this.isAIThinking = false;
+
+        this.syncPiecesFromGame();
+        const initialPOV = (mode === 'ai' && playerColor === 'b') ? 'black' : 'white';
+        this.setCameraPOV(initialPOV, false);
+        this.updateHUD();
+
+        if (this.gameMode === 'ai' && this.playerColor === 'b') {
+          this.triggerAIMove();
+        }
+      }
+
+      /** Pembaruan Seluruh Tampilan HUD (Giliran, Bidak Termakan, Keunggulan Poin, Notasi) */
+      updateHUD() {
+        const turn = this.game.turn();
+        const isWhiteTurn = turn === 'w';
+        const inCheck = this.game.in_check();
+
+        const diffNames = { 1: 'Pemula', 2: 'Menengah', 3: 'Grandmaster' };
+        const modeSubtitle = document.getElementById('mode-subtitle');
+        if (modeSubtitle) {
+          modeSubtitle.textContent = this.gameMode === 'ai'
+            ? `Lawan AI • Tingkat ${diffNames[this.aiDifficulty]}`
+            : `2 Pemain (Lokal) • ${this.autoFlipPvP ? 'Auto-Flip Aktif' : 'POV Manual'}`;
+        }
+
+        const nameWhite = document.getElementById('name-white');
+        const nameBlack = document.getElementById('name-black');
+        if (nameWhite && nameBlack) {
+          if (this.gameMode === 'ai') {
+            nameWhite.textContent = this.playerColor === 'w' ? 'Putih (Anda)' : 'Putih (AI)';
+            nameBlack.textContent = this.playerColor === 'b' ? 'Hitam (Anda)' : 'Hitam (AI)';
+          } else {
+            nameWhite.textContent = 'Putih (Pemain 1)';
+            nameBlack.textContent = 'Hitam (Pemain 2)';
+          }
+        }
+
+        const turnDot = document.getElementById('turn-dot');
+        const turnText = document.getElementById('turn-text');
+        const statusSubtext = document.getElementById('status-subtext');
+        const turnPill = document.getElementById('turn-pill');
+        const aiBadge = document.getElementById('ai-thinking-badge');
+
+        if (turnDot) {
+          turnDot.style.backgroundColor = isWhiteTurn ? '#fef3c7' : '#1e293b';
+          turnDot.style.boxShadow = isWhiteTurn
+            ? '0 0 12px rgba(255,255,255,0.85)'
+            : '0 0 12px rgba(212,175,55,0.85)';
+        }
+
+        if (turnText) {
+          turnText.textContent = isWhiteTurn ? 'Giliran Putih' : 'Giliran Hitam';
+        }
+
+        if (statusSubtext && turnPill) {
+          if (this.game.in_checkmate()) {
+            statusSubtext.textContent = 'SKAKMAT! Pertandingan berakhir';
+            turnPill.classList.add('check-alert-pulse');
+          } else if (inCheck) {
+            statusSubtext.textContent = '⚠️ SKAK! Lindungi Raja Anda';
+            turnPill.classList.add('check-alert-pulse');
+          } else {
+            statusSubtext.textContent = this.isAIThinking ? 'AI sedang menghitung langkah...' : 'Pilih bidak untuk melangkah';
+            turnPill.classList.remove('check-alert-pulse');
+          }
+        }
+
+        if (aiBadge) {
+          aiBadge.classList.toggle('hidden', !this.isAIThinking);
+          aiBadge.classList.toggle('flex', this.isAIThinking);
+        }
+
+        const cardWhite = document.getElementById('card-white');
+        const cardBlack = document.getElementById('card-black');
+        if (cardWhite && cardBlack) {
+          cardWhite.classList.toggle('ring-1', isWhiteTurn);
+          cardWhite.classList.toggle('ring-amber-400/50', isWhiteTurn);
+          cardBlack.classList.toggle('ring-1', !isWhiteTurn);
+          cardBlack.classList.toggle('ring-amber-400/50', !isWhiteTurn);
+        }
+
+        this.updateCapturedAndMaterial();
+        this.updateMoveHistoryUI();
+        this.updateCameraPOVButtons();
+      }
+
+      /** Menghitung bidak yang telah dimakan masing-masing sisi */
+      updateCapturedAndMaterial() {
+        const startCounts = { p: 8, n: 2, b: 2, r: 2, q: 1 };
+        const onBoard = {
+          w: { p: 0, n: 0, b: 0, r: 0, q: 0 },
+          b: { p: 0, n: 0, b: 0, r: 0, q: 0 }
+        };
+        const values = { p: 1, n: 3, b: 3, r: 5, q: 9 };
+
+        this.game.board().forEach(row => {
+          row.forEach(cell => {
+            if (cell && cell.type !== 'k') {
+              onBoard[cell.color][cell.type]++;
+            }
+          });
+        });
+
+        const iconsW = { q: '♕', r: '♖', b: '♗', n: '♘', p: '♙' };
+        const iconsB = { q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
+
+        let capByWhite = '';
+        let capByBlack = '';
+        let scoreW = 0;
+        let scoreB = 0;
+
+        ['q', 'r', 'b', 'n', 'p'].forEach(t => {
+          const lostB = Math.max(0, startCounts[t] - onBoard.b[t]);
+          const lostW = Math.max(0, startCounts[t] - onBoard.w[t]);
+          capByWhite += iconsB[t].repeat(lostB);
+          capByBlack += iconsW[t].repeat(lostW);
+          scoreW += lostB * values[t];
+          scoreB += lostW * values[t];
+        });
+
+        const emptyText = '<span class="text-[11px] text-slate-500 italic">Belum ada bidak dimakan</span>';
+        document.getElementById('captured-by-white').innerHTML = capByWhite || emptyText;
+        document.getElementById('captured-by-black').innerHTML = capByBlack || emptyText;
+        document.getElementById('captured-by-white-mobile').textContent = capByWhite || '—';
+        document.getElementById('captured-by-black-mobile').textContent = capByBlack || '—';
+
+        const diff = scoreW - scoreB;
+        const advW = document.getElementById('adv-white');
+        const advB = document.getElementById('adv-black');
+        const advWM = document.getElementById('adv-white-mobile');
+        const advBM = document.getElementById('adv-black-mobile');
+
+        if (diff > 0) {
+          advW.textContent = `+${diff}`;
+          advW.classList.remove('hidden');
+          advWM.textContent = `+${diff}`;
+          advWM.classList.remove('hidden');
+          advB.classList.add('hidden');
+          advBM.classList.add('hidden');
+        } else if (diff < 0) {
+          advB.textContent = `+${Math.abs(diff)}`;
+          advB.classList.remove('hidden');
+          advBM.textContent = `+${Math.abs(diff)}`;
+          advBM.classList.remove('hidden');
+          advW.classList.add('hidden');
+          advWM.classList.add('hidden');
+        } else {
+          [advW, advB, advWM, advBM].forEach(el => el.classList.add('hidden'));
+        }
+      }
+
+      /** Memperbarui daftar riwayat langkah notasi aljabar */
+      updateMoveHistoryUI() {
+        const hist = this.game.history();
+        const counter = document.getElementById('move-counter');
+        if (counter) counter.textContent = `${hist.length} Langkah`;
+
+        const desktopBox = document.getElementById('move-history-desktop');
+        const mobileBox = document.getElementById('move-history-mobile');
+
+        if (hist.length === 0) {
+          const placeholder = '<div class="h-full flex items-center justify-center text-slate-500 italic text-center px-4 py-6">Permainan dimulai. Gerakkan bidak Putih pertama Anda.</div>';
+          if (desktopBox) desktopBox.innerHTML = placeholder;
+          if (mobileBox) mobileBox.innerHTML = placeholder;
+          return;
+        }
+
+        let rowsHTML = '';
+        for (let i = 0; i < hist.length; i += 2) {
+          const moveNum = Math.floor(i / 2) + 1;
+          const wMove = hist[i] || '';
+          const bMove = hist[i + 1] || '';
+          const isLatest = i + 2 >= hist.length;
+          rowsHTML += `
+            <div class="grid grid-cols-12 items-center px-2.5 py-1.5 rounded-xl ${isLatest ? 'bg-amber-500/15 border border-amber-400/30' : 'hover:bg-white/5'}">
+              <span class="col-span-3 text-slate-400 font-mono">${moveNum}.</span>
+              <span class="col-span-4 font-semibold text-white">${wMove}</span>
+              <span class="col-span-5 font-semibold text-amber-200">${bMove}</span>
+            </div>
+          `;
+        }
+
+        if (desktopBox) {
+          desktopBox.innerHTML = rowsHTML;
+          desktopBox.scrollTop = desktopBox.scrollHeight;
+        }
+        if (mobileBox) {
+          mobileBox.innerHTML = rowsHTML;
+          mobileBox.scrollTop = mobileBox.scrollHeight;
+        }
+      }
+
+      /** Menampilkan Modal Akhir Pertandingan */
+      showGameOverModal() {
+        const modal = document.getElementById('gameover-modal');
+        const crown = document.getElementById('gameover-crown');
+        const badge = document.getElementById('gameover-badge');
+        const title = document.getElementById('gameover-title');
+        const desc = document.getElementById('gameover-desc');
+
+        if (this.game.in_checkmate()) {
+          const winner = this.game.turn() === 'w' ? 'Hitam' : 'Putih';
+          crown.textContent = '👑';
+          badge.textContent = 'SKAKMAT';
+          title.textContent = `${winner} Menang!`;
+          desc.textContent = `Raja ${this.game.turn() === 'w' ? 'Putih' : 'Hitam'} tidak memiliki langkah penyelamatan lagi.`;
+        } else {
+          crown.textContent = '🤝';
+          badge.textContent = 'PERTANDINGAN REMIS';
+          title.textContent = 'Hasil Seri';
+          desc.textContent = this.game.in_stalemate()
+            ? 'Pertandingan berakhir Pat (Stalemate).'
+            : 'Pertandingan berakhir seri berdasarkan aturan resmi catur.';
+        }
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+      }
+
+      /** Menampilkan Banner Toast Notifikasi */
+      showToast(message, icon = '✨') {
+        const banner = document.getElementById('toast-banner');
+        const iconEl = document.getElementById('toast-icon');
+        const msgEl = document.getElementById('toast-message');
+        if (!banner || !msgEl) return;
+
+        if (iconEl) iconEl.textContent = icon;
+        msgEl.textContent = message;
+
+        banner.classList.remove('opacity-0', '-translate-y-2');
+        banner.classList.add('opacity-100', 'translate-y-0');
+
+        clearTimeout(this.toastTimeout);
+        this.toastTimeout = setTimeout(() => {
+          banner.classList.remove('opacity-100', 'translate-y-0');
+          banner.classList.add('opacity-0', '-translate-y-2');
+        }, 2500);
+      }
+
+      /** Menghubungkan seluruh interaksi Pointer, Keyboard & Tombol HUD */
+      bindUIEvents() {
+        const dom = this.renderer.domElement;
+
+        dom.addEventListener('pointerdown', (e) => {
+          this.pointerDownPos = { x: e.clientX, y: e.clientY };
+          // Jika pengguna menyentuh/menyeret papan saat transisi kamera berlangsung, langsung kembalikan kontrol bebas
+          if (this.cameraTransition) {
+            this.cameraTransition = null;
+            this.activeCameraMode = 'free';
+            if (this.controls) {
+              this.controls.enabled = true;
+              this.controls.update();
+            }
+          } else if (this.activeCameraMode === 'top') {
+            this.activeCameraMode = 'free';
+          }
+        });
+
+        dom.addEventListener('wheel', () => {
+          if (this.cameraTransition) {
+            this.cameraTransition = null;
+            this.activeCameraMode = 'free';
+            if (this.controls) {
+              this.controls.enabled = true;
+            }
+          }
+        }, { passive: true });
+
+        dom.addEventListener('pointermove', (e) => {
+          if (e.pointerType === 'touch') return;
+          this.handlePointerHover(e.clientX, e.clientY);
+        });
+
+        dom.addEventListener('pointerup', (e) => {
+          const dx = e.clientX - this.pointerDownPos.x;
+          const dy = e.clientY - this.pointerDownPos.y;
+          if (Math.hypot(dx, dy) <= 10) {
+            this.handleBoardTap(e.clientX, e.clientY);
+          }
+        });
+
+        // Responsif Resize & Rotasi Layar HP (Portrait <-> Landscape)
+        window.addEventListener('resize', () => {
+          const container = document.getElementById('canvas-container');
+          const w = container.clientWidth || window.innerWidth;
+          const h = container.clientHeight || window.innerHeight;
+          this.camera.aspect = w / h;
+          this.camera.updateProjectionMatrix();
+          this.renderer.setSize(w, h);
+          if (['white', 'black', 'top'].includes(this.activeCameraMode)) {
+            this.setCameraPOV(this.activeCameraMode, true);
+          }
+        });
+
+        // Tombol Sembunyikan / Tampilkan UI + Pintasan Keyboard 'H'
+        document.getElementById('btn-hide-ui').addEventListener('click', () => {
+          this.audio.playSelect();
+          this.toggleUIVisibility(true);
+        });
+
+        document.getElementById('btn-restore-ui').addEventListener('click', () => {
+          this.audio.playSelect();
+          this.toggleUIVisibility(false);
+        });
+
+        window.addEventListener('keydown', (e) => {
+          if (e.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+          if (e.key === 'h' || e.key === 'H') {
+            this.audio.playSelect();
+            this.toggleUIVisibility();
+          }
+        });
+
+        // Tombol Preset Kamera POV (POV Putih, POV Hitam, Auto-Flip, Tampilan Atas)
+        document.getElementById('btn-pov-white').addEventListener('click', () => {
+          this.audio.playSelect();
+          this.setCameraPOV('white');
+        });
+
+        document.getElementById('btn-pov-black').addEventListener('click', () => {
+          this.audio.playSelect();
+          this.setCameraPOV('black');
+        });
+
+        document.getElementById('btn-pov-top').addEventListener('click', () => {
+          this.audio.playSelect();
+          this.setCameraPOV('top');
+        });
+
+        document.getElementById('btn-pov-autoflip').addEventListener('click', () => {
+          this.audio.playSelect();
+          this.autoFlipPvP = !this.autoFlipPvP;
+          this.updateHUD();
+          if (this.autoFlipPvP && this.gameMode === 'pvp') {
+            const activeSide = this.game.turn() === 'w' ? 'white' : 'black';
+            this.setCameraPOV(activeSide);
+            this.showToast('Auto-Flip Giliran diaktifkan', '🔄');
+          } else {
+            this.showToast('Auto-Flip Giliran dimatikan (POV Manual)', '🎥');
+          }
+        });
+
+        // Tombol Audio Mute / Unmute
+        const btnAudio = document.getElementById('btn-audio');
+        btnAudio.addEventListener('click', () => {
+          const muted = this.audio.toggleMute();
+          btnAudio.textContent = muted ? '🔇' : '🔊';
+          btnAudio.title = muted ? 'Suara Efek (Nonaktif)' : 'Suara Efek (Aktif)';
+          this.showToast(muted ? 'Suara dimatikan' : 'Suara diaktifkan', muted ? '🔇' : '🔊');
+        });
+
+        // Tombol Aksi Desktop & Mobile (Undo, Hint, New Game, Mobile History)
+        ['btn-undo', 'btn-undo-mobile'].forEach(id => {
+          document.getElementById(id).addEventListener('click', () => this.undoMove());
+        });
+
+        ['btn-hint', 'btn-hint-mobile'].forEach(id => {
+          document.getElementById(id).addEventListener('click', () => this.showHint());
+        });
+
+        const setupModal = document.getElementById('setup-modal');
+        const openSetup = () => {
+          this.audio.playSelect();
+          setupModal.classList.remove('hidden');
+          setupModal.classList.add('flex');
+        };
+        const closeSetup = () => {
+          setupModal.classList.add('hidden');
+          setupModal.classList.remove('flex');
+        };
+
+        ['btn-new-game', 'btn-new-game-mobile'].forEach(id => {
+          document.getElementById(id).addEventListener('click', openSetup);
+        });
+        document.getElementById('btn-close-setup').addEventListener('click', closeSetup);
+
+        // Modal Notasi Mobile
+        const mobileHistModal = document.getElementById('mobile-history-modal');
+        document.getElementById('btn-history-toggle-mobile').addEventListener('click', () => {
+          this.audio.playSelect();
+          mobileHistModal.classList.remove('hidden');
+          mobileHistModal.classList.add('flex');
+        });
+        document.getElementById('btn-close-mobile-history').addEventListener('click', () => {
+          mobileHistModal.classList.add('hidden');
+          mobileHistModal.classList.remove('flex');
+        });
+
+        // Modal Promosi Pion
+        document.querySelectorAll('.promo-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const promoPiece = btn.getAttribute('data-piece');
+            const promoModal = document.getElementById('promotion-modal');
+            promoModal.classList.add('hidden');
+            promoModal.classList.remove('flex');
+            if (this.pendingPromotion) {
+              const { from, to } = this.pendingPromotion;
+              this.pendingPromotion = null;
+              this.executeMove({ from, to, promotion: promoPiece });
+            }
+          });
+        });
+
+        // Pilihan Konfigurasi pada Modal Permainan Baru
+        document.querySelectorAll('.setup-mode-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            this.tempSetup.mode = btn.getAttribute('data-mode');
+            document.querySelectorAll('.setup-mode-btn').forEach(b => {
+              b.classList.remove('border-amber-400/60', 'bg-amber-500/15');
+            });
+            btn.classList.add('border-amber-400/60', 'bg-amber-500/15');
+
+            const aiGroup = document.getElementById('ai-options-group');
+            const pvpGroup = document.getElementById('pvp-options-group');
+            if (this.tempSetup.mode === 'ai') {
+              aiGroup.classList.remove('hidden');
+              pvpGroup.classList.add('hidden');
+            } else {
+              aiGroup.classList.add('hidden');
+              pvpGroup.classList.remove('hidden');
+            }
+          });
+        });
+
+        document.querySelectorAll('.setup-pvpcam-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            this.tempSetup.pvpCam = btn.getAttribute('data-pvp-cam');
+            document.querySelectorAll('.setup-pvpcam-btn').forEach(b => {
+              b.classList.remove('border-amber-400/60', 'bg-amber-500/15');
+            });
+            btn.classList.add('border-amber-400/60', 'bg-amber-500/15');
+          });
+        });
+
+        document.querySelectorAll('.setup-diff-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            this.tempSetup.diff = parseInt(btn.getAttribute('data-diff'), 10);
+            document.querySelectorAll('.setup-diff-btn').forEach(b => {
+              b.classList.remove('border-amber-400/60', 'bg-amber-500/15');
+            });
+            btn.classList.add('border-amber-400/60', 'bg-amber-500/15');
+          });
+        });
+
+        document.querySelectorAll('.setup-color-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            this.tempSetup.color = btn.getAttribute('data-color');
+            document.querySelectorAll('.setup-color-btn').forEach(b => {
+              b.classList.remove('border-amber-400/60', 'bg-amber-500/15');
+            });
+            btn.classList.add('border-amber-400/60', 'bg-amber-500/15');
+          });
+        });
+
+        document.getElementById('btn-start-match').addEventListener('click', () => {
+          this.audio.init();
+          this.audio.playSelect();
+          closeSetup();
+          this.startNewMatch(
+            this.tempSetup.mode,
+            this.tempSetup.diff,
+            this.tempSetup.color,
+            this.tempSetup.pvpCam
+          );
+          this.showToast('Pertandingan baru dimulai!', '👑');
+        });
+
+        // Tombol pada Modal Akhir Pertandingan
+        const gameOverModal = document.getElementById('gameover-modal');
+        document.getElementById('btn-review-board').addEventListener('click', () => {
+          gameOverModal.classList.add('hidden');
+          gameOverModal.classList.remove('flex');
+        });
+
+        document.getElementById('btn-play-again').addEventListener('click', () => {
+          gameOverModal.classList.add('hidden');
+          gameOverModal.classList.remove('flex');
+          openSetup();
+        });
+      }
+
+      /** Loop Rendering & Fisika Animasi 60 FPS */
+      animate() {
+        requestAnimationFrame(() => this.animate());
+
+        const dt = Math.min(this.clock.getDelta(), 0.1);
+        const elapsed = this.clock.getElapsedTime();
+
+        // 1. Animasi Pergerakan Bidak
+        if (this.activeAnimations.length > 0) {
+          for (let i = this.activeAnimations.length - 1; i >= 0; i--) {
+            const anim = this.activeAnimations[i];
+            anim.progress += dt / anim.duration;
+            const t = Math.min(1, anim.progress);
+            const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+            anim.mesh.position.lerpVectors(anim.startPos, anim.endPos, ease);
+            if (anim.isArcJump) {
+              anim.mesh.position.y += Math.sin(t * Math.PI) * 1.15;
+            }
+
+            if (t >= 1) {
+              anim.mesh.position.copy(anim.endPos);
+              this.activeAnimations.splice(i, 1);
+              if (this.activeAnimations.length === 0) {
+                this.isAnimating = false;
+              }
+              if (anim.onComplete) anim.onComplete();
+            }
+          }
+        }
+
+        // 2. Animasi Partikel Ledakan Tangkapan
+        for (let i = this.captureParticles.length - 1; i >= 0; i--) {
+          const p = this.captureParticles[i];
+          p.life -= dt * 1.5;
+          p.vy -= 9.8 * dt;
+          p.mesh.position.x += p.vx * dt;
+          p.mesh.position.y += p.vy * dt;
+          p.mesh.position.z += p.vz * dt;
+          p.mesh.material.opacity = Math.max(0, p.life);
+          p.mesh.scale.setScalar(Math.max(0.01, p.life));
+
+          if (p.life <= 0) {
+            this.scene.remove(p.mesh);
+            p.mesh.geometry.dispose();
+            p.mesh.material.dispose();
+            this.captureParticles.splice(i, 1);
+          }
+        }
+
+        // 3. Animasi Denyut Cincin Penanda & Rotasi Debu Emas
+        if (this.selectionRing && this.selectionRing.visible) {
+          const pulse = 1 + Math.sin(elapsed * 5.2) * 0.06;
+          this.selectionRing.scale.set(pulse, pulse, 1);
+        }
+        if (this.checkRing && this.checkRing.visible) {
+          const chkPulse = 1 + Math.sin(elapsed * 8.5) * 0.09;
+          this.checkRing.scale.set(chkPulse, chkPulse, 1);
+        }
+        if (this.dustPoints) {
+          this.dustPoints.rotation.y = elapsed * 0.025;
+        }
+
+        // 4. Transisi Preset Kamera Melingkar (Orbital Sweep) & Efek Getaran Halus
+        if (this.cameraTransition) {
+          const ct = this.cameraTransition;
+          ct.elapsed += dt;
+          const t = Math.min(1, ct.elapsed / ct.duration);
+          const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+          const curR = ct.startR + (ct.endR - ct.startR) * ease;
+          const curTheta = ct.startTheta + ct.deltaTheta * ease;
+          const curY = ct.startY + (ct.endY - ct.startY) * ease;
+
+          this.camera.position.set(
+            Math.sin(curTheta) * curR,
+            curY,
+            Math.cos(curTheta) * curR
+          );
+          this.camera.lookAt(0, 0, 0);
+
+          if (this.controls && ct.startTarget && ct.endTarget) {
+            this.controls.target.lerpVectors(ct.startTarget, ct.endTarget, ease);
+          }
+
+          if (t >= 1) {
+            this.cameraTransition = null;
+            if (this.controls) {
+              this.controls.enabled = true;
+              this.controls.update();
+            }
+            this.updateCameraPOVButtons();
+          }
+        } else if (this.controls) {
+          this.controls.update();
+          this.updateCameraPOVButtons();
+        }
+
+        if (this.cameraShake > 0.001) {
+          this.camera.position.x += (Math.random() - 0.5) * this.cameraShake;
+          this.camera.position.y += (Math.random() - 0.5) * this.cameraShake;
+          this.cameraShake *= 0.85;
+        }
+
+        this.renderer.render(this.scene, this.camera);
+      }
+    }
+
+    // Inisialisasi aplikasi saat halaman selesai dimuat
+    window.addEventListener('load', () => {
+      try {
+        window.chessApp = new Grandmaster3DApp();
+      } catch (err) {
+        console.error('Gagal menginisialisasi Grandmaster 3D Chess:', err);
+        const statusEl = document.getElementById('loading-status');
+        if (statusEl) {
+          statusEl.textContent = 'Terjadi kendala saat memuat grafis 3D WebGL.';
+        }
+      }
+    });
+  </script>
+</body>
+</html>
